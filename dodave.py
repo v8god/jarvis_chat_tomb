@@ -44,6 +44,8 @@ import googleapiclient.errors
 # IMPORTS FOR STARTING CHATBOX
 import threading
 from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit
+import time
 import queue
 
 
@@ -76,13 +78,30 @@ voices = engine.getProperty('voices')
 # engine.setProperty('voices')
 engine.setProperty('voices', voices[1].id)
 
+
+app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+
 # ===== Global Settings =====
-log_queue = queue.Queue()
+'''log_queue = queue.Queue()
 mode = "voice"  # default mode
 
 def add_chat(sender, text):
     """Push message to chat UI."""
-    log_queue.put({"sender": sender, "text": text})
+    log_queue.put({"sender": sender, "text": text})'''
+
+mode = "text"
+listening = False
+command_queue = queue.Queue()
+
+chat_history = []
+
+def add_chat(sender, text):
+    chat_history.append({"sender": sender, "text": text})
+    socketio.emit('new_message', {"sender": sender, "text": text})
+
+
 
 def speak(text, emotion):
     print(f"Jarvis: {text}")
@@ -142,16 +161,18 @@ def wishMe():
     print("Please tell me how can I help you")
 
 def takeCommand():
+    global mode
     #Takes command/microphone input and give us string command
     if mode == "text":
         # Wait until text command is received via web
         while True:
             try:
-                cmd_data = log_queue.get(timeout=0.1)
+                #cmd_data = log_queue.get(timeout=0.1)
+                cmd_data = command_queue.get(timeout=0.1)
                 if cmd_data.get("type") == "web_command":
                     add_chat("You", cmd_data["text"])
                     return cmd_data["text"]
-            except:
+            except queue.Empty:
                 pass
     else:
         r = sr.Recognizer()
@@ -852,44 +873,87 @@ def JarvisMain():
         else:
             speak(f"Command '{query}' not set by master.")
     
-
+JarvisMain()
 # ===== Flask UI =====
-app = Flask(__name__)
+#app = Flask(__name__)
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/logs")
-def get_logs():
-    logs = []
-    while not log_queue.empty():
-        logs.append(log_queue.get())
-    return jsonify({"logs": logs})
+#@app.route("/logs")
+# def get_logs():
+#     logs = []
+#     while not log_queue.empty():
+#         logs.append(log_queue.get())
+#     return jsonify({"logs": logs})
 
-@app.route("/send_command", methods=["POST"])
-def send_command():
-    data = request.get_json()
-    cmd = data.get("cmd", "")
-    log_queue.put({"type": "web_command", "text": cmd})
-    return jsonify({"status": "ok"})
-
-@app.route("/set_mode", methods=["POST"])
+@app.route('/set_mode', methods=['POST'])
 def set_mode():
     global mode
-    data = request.get_json()
-    mode = data.get("mode", "voice")
-    add_chat("System", f"Mode set to {mode}")
-    return jsonify({"status": "ok"})
+    data = request.json
+    mode = data.get('mode', 'text')
+    print(f"Mode changed to: {mode}")
+    return jsonify({"status": "ok", "mode": mode})
 
-def run_flask():
-    app.run(debug=False, port=5000, use_reloader=False)
 
-if __name__ == "__main__":
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-    JarvisMain()
+# @app.route("/send_command", methods=["POST"])
+# def send_command():
+#     data = request.get_json()
+#     cmd = data.get("cmd", "")
+#     log_queue.put({"type": "web_command", "text": cmd})
+#     return jsonify({"status": "ok"})
 
+@app.route('/send_text', methods=['POST'])
+def receive_text():
+    data = request.json
+    text = data.get('text')
+    command_queue.put({"type": "web_command", "text": text})
+    return jsonify({"status": "received", "text": text})
+
+# @app.route("/set_mode", methods=["POST"])
+# def set_mode():
+#     global mode
+#     data = request.get_json()
+#     mode = data.get("mode", "voice")
+#     add_chat("System", f"Mode set to {mode}")
+#     return jsonify({"status": "ok"})
+
+# def run_flask():
+#     app.run(debug=False, port=5000, use_reloader=False)
+
+# if __name__ == "__main__":
+#     flask_thread = threading.Thread(target=run_flask)
+#     flask_thread.start()
+#     JarvisMain()
+
+@socketio.on('start_listening')
+def handle_start_listening():
+    global listening
+    if not listening:
+        listening = True
+        print("Mic started listening (triggered from frontend)")
+        # Optionally start a new thread here to do your speech recognition and add_chat when done
+        def listen_thread():
+            global listening
+            # Your actual speech recognition logic can go here
+            # For demo, just simulate:
+            time.sleep(5)
+            spoken_text = "simulated speech input after mic start"
+            add_chat("You", spoken_text)
+            listening = False
+
+        threading.Thread(target=listen_thread).start()
+
+@socketio.on('stop_listening')
+def handle_stop_listening():
+    global listening
+    listening = False
+    print("Mic stopped listening (triggered from frontend)")
+
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
 
 
 '''
@@ -943,6 +1007,7 @@ jarvis.show()
 #exit(app.exit_())
 sys.exit(app.exec_())
 '''
+
 
 
 
