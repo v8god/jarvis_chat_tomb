@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNA Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            overflow: hidden;
+            height: 100vh;
+            color: #00ff88;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #dna-viewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: move;
+            z-index: 1;
+        }
+
+        #chatbox {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 400px;
+            height: 500px;
+            background: rgba(0, 20, 40, 0.9);
+            border: 2px solid #00ff88;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            cursor: move;
+            overflow: hidden;
+        }
+
+        #chatbox::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ff88, #0080ff, #ff0080, #00ff88);
+            border-radius: 15px;
+            z-index: -1;
+            animation: glow 2s linear infinite;
+        }
+
+        @keyframes glow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #chat-header {
+            padding: 15px;
+            background: rgba(0, 255, 136, 0.1);
+            border-bottom: 1px solid #00ff88;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: #00ff88;
+            text-transform: uppercase;
+        }
+
+        #messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #00ff88 transparent;
+        }
+
+        #messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #messages::-webkit-scrollbar-thumb {
+            background: #00ff88;
+            border-radius: 3px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .user-message {
+            text-align: right;
+        }
+
+        .user-message .message-content {
+            background: linear-gradient(135deg, #0080ff, #0040ff);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 15px 15px 5px 15px;
+            display: inline-block;
+            max-width: 80%;
+            box-shadow: 0 5px 15px rgba(0, 128, 255, 0.3);
+        }
+
+        .ai-message .message-content {
+            background: linear-gradient(135deg, #00ff88, #00cc70);
+            color: #001a0a;
+            padding: 10px 15px;
+            border-radius: 15px 15px 15px 5px;
+            display: inline-block;
+            max-width: 80%;
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.3);
+        }
+
+        #input-area {
+            padding: 15px;
+            border-top: 1px solid #00ff88;
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        #input-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #message-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #00ff88;
+            border-radius: 20px;
+            padding: 10px 15px;
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        #message-input:focus {
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+            border-color: #00ccff;
+        }
+
+        #message-input::placeholder {
+            color: rgba(0, 255, 136, 0.5);
+        }
+
+        #send-button {
+            background: linear-gradient(135deg, #00ff88, #00cc70);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #001a0a;
+            font-weight: bold;
+        }
+
+        #send-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            border-radius: 50%;
+            border-top-color: #00ff88;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .dna-strand {
+            position: absolute;
+            width: 2px;
+            background: linear-gradient(to bottom, #00ff88, #0080ff);
+            animation: dna-float 4s ease-in-out infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes dna-float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="dna-viewer"></div>
+        
+        <!-- Decorative DNA strands -->
+        <div class="dna-strand" style="left: 10%; height: 100px; top: 20%; animation-delay: 0s;"></div>
+        <div class="dna-strand" style="right: 15%; height: 80px; top: 60%; animation-delay: 1s;"></div>
+        <div class="dna-strand" style="left: 80%; height: 120px; top: 10%; animation-delay: 2s;"></div>
+
+        <div id="chatbox">
+            <div id="chat-header">DNA Analysis Interface</div>
+            <div id="messages"></div>
+            <div id="input-area">
+                <div id="input-container">
+                    <input type="text" id="message-input" placeholder="Enter your query..." />
+                    <button id="send-button">→</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DNA 3D Viewer Setup
+        let scene, camera, renderer, dnaGroup;
+        let mouseX = 0, mouseY = 0;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        function initDNAViewer() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 0);
+            document.getElementById('dna-viewer').appendChild(renderer.domElement);
+
+            // Create DNA double helix
+            dnaGroup = new THREE.Group();
+            createDNAHelix();
+            scene.add(dnaGroup);
+
+            camera.position.z = 15;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0x00ff88, 1, 100);
+            pointLight.position.set(10, 10, 10);
+            scene.add(pointLight);
+
+            const pointLight2 = new THREE.PointLight(0x0080ff, 1, 100);
+            pointLight2.position.set(-10, -10, 10);
+            scene.add(pointLight2);
+
+            animate();
+        }
+
+        function createDNAHelix() {
+            const helixHeight = 20;
+            const helixRadius = 3;
+            const segments = 100;
+
+            // Create backbone strands
+            for (let strand = 0; strand < 2; strand++) {
+                const strandGeometry = new THREE.TubeGeometry(
+                    new THREE.CatmullRomCurve3(generateHelixPoints(helixHeight, helixRadius, segments, strand)),
+                    segments,
+                    0.1,
+                    8,
+                    false
+                );
+                
+                const strandMaterial = new THREE.MeshPhongMaterial({
+                    color: strand === 0 ? 0x00ff88 : 0x0080ff,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const strandMesh = new THREE.Mesh(strandGeometry, strandMaterial);
+                dnaGroup.add(strandMesh);
+            }
+
+            // Create base pairs
+            for (let i = 0; i < segments; i += 3) {
+                const t = i / segments;
+                const y = (t - 0.5) * helixHeight;
+                const angle = t * Math.PI * 8;
+                
+                const x1 = Math.cos(angle) * helixRadius;
+                const z1 = Math.sin(angle) * helixRadius;
+                const x2 = Math.cos(angle + Math.PI) * helixRadius;
+                const z2 = Math.sin(angle + Math.PI) * helixRadius;
+
+                const basePairGeometry = new THREE.CylinderGeometry(0.05, 0.05, helixRadius * 2, 8);
+                const basePairMaterial = new THREE.MeshPhongMaterial({
+                    color: Math.random() > 0.5 ? 0xff6b6b : 0x4ecdc4,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                
+                const basePair = new THREE.Mesh(basePairGeometry, basePairMaterial);
+                basePair.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+                basePair.rotation.z = angle;
+                dnaGroup.add(basePair);
+            }
+        }
+
+        function generateHelixPoints(height, radius, segments, strand) {
+            const points = [];
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const angle = t * Math.PI * 8 + (strand * Math.PI);
+                const x = Math.cos(angle) * radius;
+                const y = (t - 0.5) * height;
+                const z = Math.sin(angle) * radius;
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            return points;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!isDragging) {
+                dnaGroup.rotation.y += 0.005;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Mouse interaction for DNA
+        function onMouseDown(event) {
+            isDragging = true;
+            previousMousePosition = { x: event.clientX, y: event.clientY };
+        }
+
+        function onMouseUp() {
+            isDragging = false;
+        }
+
+        function onMouseMove(event) {
+            if (isDragging && dnaGroup) {
+                const deltaX = event.clientX - previousMousePosition.x;
+                const deltaY = event.clientY - previousMousePosition.y;
+                
+                dnaGroup.rotation.y += deltaX * 0.01;
+                dnaGroup.rotation.x += deltaY * 0.01;
+                
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        document.getElementById('dna-viewer').addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', onMouseMove);
+
+        // Chatbox functionality
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+
+        function addMessage(content, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
+            
+            messageDiv.appendChild(messageContent);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function simulateAIResponse(userMessage) {
+            const responses = [
+                "Analyzing DNA sequence structure...",
+                "The double helix shows interesting base pair formations.",
+                "Detecting genetic markers in the provided structure.",
+                "Molecular visualization complete. What specific analysis do you need?",
+                "Processing genetic data... Would you like me to explain any specific regions?",
+                "DNA structure loaded successfully. Ready for detailed analysis.",
+                "Identifying coding and non-coding regions in the sequence.",
+                "The helical structure appears stable. What parameters should I examine?"
+            ];
+            
+            setTimeout(() => {
+                const response = responses[Math.floor(Math.random() * responses.length)];
+                addMessage(response, false);
+            }, 1000 + Math.random() * 2000);
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message) {
+                addMessage(message, true);
+                messageInput.value = '';
+                simulateAIResponse(message);
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Make chatbox draggable
+        let chatboxIsDragging = false;
+        let chatboxOffset = { x: 0, y: 0 };
+
+        document.getElementById('chat-header').addEventListener('mousedown', (e) => {
+            chatboxIsDragging = true;
+            const rect = document.getElementById('chatbox').getBoundingClientRect();
+            chatboxOffset.x = e.clientX - rect.left;
+            chatboxOffset.y = e.clientY - rect.top;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (chatboxIsDragging) {
+                const chatbox = document.getElementById('chatbox');
+                chatbox.style.left = (e.clientX - chatboxOffset.x) + 'px';
+                chatbox.style.top = (e.clientY - chatboxOffset.y) + 'px';
+                chatbox.style.right = 'auto';
+                chatbox.style.bottom = 'auto';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            chatboxIsDragging = false;
+        });
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        initDNAViewer();
+        
+        // Welcome message
+        setTimeout(() => {
+            addMessage("DNA Viewer initialized. Upload your PDB file or ask me about the DNA structure!", false);
+        }, 1000);
+    </script>
+</body>
+</html>
