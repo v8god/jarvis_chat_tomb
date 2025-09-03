@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive DNA Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            overflow: hidden;
+            height: 100vh;
+            color: #ffffff;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #dna-viewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            z-index: 1;
+        }
+
+        #dna-viewer:active {
+            cursor: grabbing;
+        }
+
+        .chatbox {
+            position: absolute;
+            width: 320px;
+            min-height: 200px;
+            background: rgba(30, 20, 60, 0.95);
+            border: 2px solid #8a2be2;
+            border-radius: 10px;
+            box-shadow: 0 0 25px rgba(138, 43, 226, 0.5);
+            backdrop-filter: blur(15px);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            cursor: move;
+            overflow: hidden;
+        }
+
+        .chatbox.active {
+            display: flex;
+        }
+
+        .chatbox-header {
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #8a2be2, #4b0082);
+            border-bottom: 1px solid rgba(138, 43, 226, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+        }
+
+        .chatbox-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #ffffff;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #ff6b6b;
+        }
+
+        .chatbox-content {
+            flex: 1;
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #8a2be2 transparent;
+        }
+
+        .chatbox-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chatbox-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chatbox-content::-webkit-scrollbar-thumb {
+            background: #8a2be2;
+            border-radius: 3px;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            line-height: 1.4;
+            font-size: 13px;
+        }
+
+        .user-message {
+            text-align: right;
+        }
+
+        .user-message .message-content {
+            background: linear-gradient(135deg, #4169e1, #1e90ff);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 12px 12px 4px 12px;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .ai-message .message-content {
+            background: linear-gradient(135deg, #8a2be2, #9370db);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 12px 12px 12px 4px;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .image-placeholder {
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(135deg, #2d1b4e, #4a2b7c);
+            border: 2px solid #8a2be2;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 12px;
+            margin: 8px 0;
+            position: relative;
+        }
+
+        .image-placeholder::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: -1px;
+            right: -1px;
+            bottom: -1px;
+            background: linear-gradient(45deg, #8a2be2, #4b0082, #8a2be2);
+            border-radius: 8px;
+            z-index: -1;
+        }
+
+        .chatbox-input {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(138, 43, 226, 0.3);
+            background: rgba(20, 10, 40, 0.8);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #8a2be2;
+            border-radius: 15px;
+            padding: 8px 12px;
+            color: #ffffff;
+            font-size: 12px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .message-input:focus {
+            box-shadow: 0 0 10px rgba(138, 43, 226, 0.5);
+            border-color: #9370db;
+        }
+
+        .message-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, #8a2be2, #4b0082);
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.6);
+        }
+
+        .control-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #8a2be2, #4b0082);
+            border: 1px solid #8a2be2;
+            border-radius: 20px;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+        }
+
+        .control-btn.active {
+            background: linear-gradient(135deg, #ff6b6b, #ff4757);
+            border-color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="control-panel">
+            <button class="control-btn" id="blue-mode-btn">Blue Nucleotides</button>
+            <button class="control-btn" id="red-mode-btn">Red Nucleotides</button>
+            <button class="control-btn" id="reset-btn">Reset View</button>
+        </div>
+
+        <div id="dna-viewer"></div>
+        
+        <div class="chatbox" id="blue-chatbox">
+            <div class="chatbox-header">
+                <span class="chatbox-title">Blue Nucleotide Analysis</span>
+                <button class="close-btn" onclick="closeChatbox('blue-chatbox')">&times;</button>
+            </div>
+            <div class="chatbox-content" id="blue-messages"></div>
+            <div class="chatbox-input">
+                <div class="input-container">
+                    <input type="text" class="message-input" id="blue-input" placeholder="Ask about blue nucleotides..." />
+                    <button class="send-btn" onclick="sendMessage('blue')">→</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chatbox" id="red-chatbox">
+            <div class="chatbox-header">
+                <span class="chatbox-title">Red Nucleotide Analysis</span>
+                <button class="close-btn" onclick="closeChatbox('red-chatbox')">&times;</button>
+            </div>
+            <div class="chatbox-content" id="red-messages"></div>
+            <div class="chatbox-input">
+                <div class="input-container">
+                    <input type="text" class="message-input" id="red-input" placeholder="Ask about red nucleotides..." />
+                    <button class="send-btn" onclick="sendMessage('red')">→</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DNA 3D Viewer Setup
+        let scene, camera, renderer, dnaGroup;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let blueBalls = [], redBalls = [];
+        let raycaster, mouse;
+
+        function initDNAViewer() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 0);
+            document.getElementById('dna-viewer').appendChild(renderer.domElement);
+
+            // Initialize raycaster for click detection
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Create DNA structure
+            dnaGroup = new THREE.Group();
+            createInteractiveDNA();
+            scene.add(dnaGroup);
+
+            camera.position.z = 20;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+            pointLight.position.set(15, 15, 15);
+            scene.add(pointLight);
+
+            const pointLight2 = new THREE.PointLight(0x8a2be2, 0.5, 100);
+            pointLight2.position.set(-15, -15, 15);
+            scene.add(pointLight2);
+
+            animate();
+        }
+
+        function createInteractiveDNA() {
+            const helixHeight = 25;
+            const helixRadius = 4;
+            const segments = 80;
+
+            // Create backbone strands
+            for (let strand = 0; strand < 2; strand++) {
+                const strandGeometry = new THREE.TubeGeometry(
+                    new THREE.CatmullRomCurve3(generateHelixPoints(helixHeight, helixRadius, segments, strand)),
+                    segments,
+                    0.08,
+                    8,
+                    false
+                );
+                
+                const strandMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xcccccc,
+                    shininess: 50,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                
+                const strandMesh = new THREE.Mesh(strandGeometry, strandMaterial);
+                dnaGroup.add(strandMesh);
+            }
+
+            // Create nucleotide base pairs with clickable balls
+            for (let i = 0; i < segments; i += 2) {
+                const t = i / segments;
+                const y = (t - 0.5) * helixHeight;
+                const angle = t * Math.PI * 10;
+                
+                const x1 = Math.cos(angle) * helixRadius;
+                const z1 = Math.sin(angle) * helixRadius;
+                const x2 = Math.cos(angle + Math.PI) * helixRadius;
+                const z2 = Math.sin(angle + Math.PI) * helixRadius;
+
+                // Connection line between bases
+                const lineGeometry = new THREE.CylinderGeometry(0.03, 0.03, helixRadius * 2, 8);
+                const lineMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x666666,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const basePair = new THREE.Mesh(lineGeometry, lineMaterial);
+                basePair.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+                basePair.rotation.z = angle;
+                dnaGroup.add(basePair);
+
+                // Blue nucleotide (left side)
+                const blueBallGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+                const blueBallMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x0066ff,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const blueBall = new THREE.Mesh(blueBallGeometry, blueBallMaterial);
+                blueBall.position.set(x1, y, z1);
+                blueBall.userData = { type: 'blue', id: `blue_${i}` };
+                blueBalls.push(blueBall);
+                dnaGroup.add(blueBall);
+
+                // Red nucleotide (right side)
+                const redBallGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+                const redBallMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff3333,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const redBall = new THREE.Mesh(redBallGeometry, redBallMaterial);
+                redBall.position.set(x2, y, z2);
+                redBall.userData = { type: 'red', id: `red_${i}` };
+                redBalls.push(redBall);
+                dnaGroup.add(redBall);
+            }
+        }
+
+        function generateHelixPoints(height, radius, segments, strand) {
+            const points = [];
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const angle = t * Math.PI * 10 + (strand * Math.PI);
+                const x = Math.cos(angle) * radius;
+                const y = (t - 0.5) * height;
+                const z = Math.sin(angle) * radius;
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            return points;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!isDragging) {
+                dnaGroup.rotation.y += 0.003;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Mouse interaction handlers
+        function onMouseDown(event) {
+            if (event.target === renderer.domElement) {
+                isDragging = true;
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onMouseUp(event) {
+            if (isDragging) {
+                isDragging = false;
+            }
+        }
+
+        function onMouseMove(event) {
+            if (isDragging && dnaGroup) {
+                const deltaX = event.clientX - previousMousePosition.x;
+                const deltaY = event.clientY - previousMousePosition.y;
+                
+                // Allow horizontal and vertical rotation
+                dnaGroup.rotation.y += deltaX * 0.01;
+                dnaGroup.rotation.x += deltaY * 0.01;
+                
+                // Also allow left-right movement
+                dnaGroup.position.x += deltaX * 0.01;
+                
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onMouseClick(event) {
+            if (isDragging) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            
+            const allBalls = [...blueBalls, ...redBalls];
+            const intersects = raycaster.intersectObjects(allBalls);
+
+            if (intersects.length > 0) {
+                const clickedBall = intersects[0].object;
+                const ballType = clickedBall.userData.type;
+                
+                // Position chatbox near the clicked ball
+                positionChatboxNearBall(clickedBall, ballType);
+                showChatbox(ballType);
+            }
+        }
+
+        function positionChatboxNearBall(ball, type) {
+            const vector = new THREE.Vector3();
+            ball.getWorldPosition(vector);
+            vector.project(camera);
+
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+            const chatbox = document.getElementById(`${type}-chatbox`);
+            chatbox.style.left = Math.max(20, Math.min(x + 20, window.innerWidth - 340)) + 'px';
+            chatbox.style.top = Math.max(20, Math.min(y, window.innerHeight - 250)) + 'px';
+        }
+
+        function showChatbox(type) {
+            document.getElementById(`${type}-chatbox`).classList.add('active');
+            
+            // Add initial message if empty
+            const messagesContainer = document.getElementById(`${type}-messages`);
+            if (messagesContainer.children.length === 0) {
+                addMessage(type, `${type.charAt(0).toUpperCase() + type.slice(1)} nucleotide analysis ready. What would you like to know?`, false);
+                
+                // Add image placeholder for demonstration
+                setTimeout(() => {
+                    addImagePlaceholder(type, "Nucleotide Structure Visualization");
+                }, 1000);
+            }
+        }
+
+        function closeChatbox(chatboxId) {
+            document.getElementById(chatboxId).classList.remove('active');
+        }
+
+        // Event listeners
+        document.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('click', onMouseClick);
+
+        // Control panel functionality
+        document.getElementById('blue-mode-btn').addEventListener('click', function() {
+            this.classList.toggle('active');
+            const isActive = this.classList.contains('active');
+            blueBalls.forEach(ball => {
+                ball.material.emissive.setHex(isActive ? 0x003366 : 0x000000);
+            });
+        });
+
+        document.getElementById('red-mode-btn').addEventListener('click', function() {
+            this.classList.toggle('active');
+            const isActive = this.classList.contains('active');
+            redBalls.forEach(ball => {
+                ball.material.emissive.setHex(isActive ? 0x330000 : 0x000000);
+            });
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            dnaGroup.position.set(0, 0, 0);
+            dnaGroup.rotation.set(0, 0, 0);
+            camera.position.set(0, 0, 20);
+        });
+
+        // Chat functionality
+        function addMessage(type, content, isUser = false) {
+            const messagesContainer = document.getElementById(`${type}-messages`);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
+            
+            messageDiv.appendChild(messageContent);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addImagePlaceholder(type, title) {
+            const messagesContainer = document.getElementById(`${type}-messages`);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai-message';
+            
+            const imagePlaceholder = document.createElement('div');
+            imagePlaceholder.className = 'image-placeholder';
+            imagePlaceholder.textContent = title || 'Analysis Result Image';
+            
+            messageDiv.appendChild(imagePlaceholder);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function sendMessage(type) {
+            const input = document.getElementById(`${type}-input`);
+            const message = input.value.trim();
+            if (message) {
+                addMessage(type, message, true);
+                input.value = '';
+                
+                // Simulate AI response
+                setTimeout(() => {
+                    const responses = {
+                        blue: [
+                            "Analyzing blue nucleotide base composition...",
+                            "Blue nucleotides show high stability in this region.",
+                            "Detected adenine-thymine pairing in blue nucleotides.",
+                            "Blue nucleotide sequence analysis complete."
+                        ],
+                        red: [
+                            "Processing red nucleotide structural data...",
+                            "Red nucleotides indicate guanine-cytosine bonds.",
+                            "High GC content detected in red nucleotide regions.",
+                            "Red nucleotide folding patterns analyzed."
+                        ]
+                    };
+                    
+                    const response = responses[type][Math.floor(Math.random() * responses[type].length)];
+                    addMessage(type, response, false);
+                    
+                    // Sometimes add an image
+                    if (Math.random() < 0.3) {
+                        setTimeout(() => {
+                            addImagePlaceholder(type, `${type.charAt(0).toUpperCase() + type.slice(1)} Nucleotide Analysis Chart`);
+                        }, 1000);
+                    }
+                }, 800 + Math.random() * 1200);
+            }
+        }
+
+        // Enter key support for inputs
+        document.getElementById('blue-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage('blue');
+        });
+
+        document.getElementById('red-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage('red');
+        });
+
+        // Make chatboxes draggable
+        let draggedChatbox = null;
+        let chatboxOffset = { x: 0, y: 0 };
+
+        document.querySelectorAll('.chatbox-header').forEach(header => {
+            header.addEventListener('mousedown', (e) => {
+                draggedChatbox = header.closest('.chatbox');
+                const rect = draggedChatbox.getBoundingClientRect();
+                chatboxOffset.x = e.clientX - rect.left;
+                chatboxOffset.y = e.clientY - rect.top;
+                e.preventDefault();
+            });
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (draggedChatbox) {
+                draggedChatbox.style.left = (e.clientX - chatboxOffset.x) + 'px';
+                draggedChatbox.style.top = (e.clientY - chatboxOffset.y) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            draggedChatbox = null;
+        });
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        initDNAViewer();
+    </script>
+</body>
+</html>
