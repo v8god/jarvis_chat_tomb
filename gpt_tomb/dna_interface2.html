@@ -41,6 +41,7 @@
       font-weight: bold;
       font-size: 1.2rem;
     }
+
     /* Dropdown Menu Base */
     .nav-links {
       list-style: none;
@@ -48,16 +49,17 @@
       gap: 2rem;
       transition: max-height 0.3s ease, opacity 0.3s ease;
     }
-    /* Links style */
     .nav-links a {
-      text-decoration: none;
       color: #fff;
+      text-decoration: none;
       font-weight: bold;
     }
+
     .menu-toggle {
       display: none;
       font-size: 1.5rem;
       cursor: pointer;
+      color: #fff;
     }
 
     /* Hero */
@@ -157,34 +159,30 @@
       padding: 1.5rem;
     }
 
-    /* Responsive */
+    /* Mobile styles */
     @media (max-width: 768px) {
       .nav-links {
-        display: none;
-        flex-direction: column;
-        background: #222;
         position: absolute;
         top: 60px;
         right: 20px;
+        flex-direction: column;
+        background: #222;
+        border-radius: 5px;
         padding: 1rem;
         gap: 1rem;
-        border-radius: 5px;
         max-height: 0;
-        opacity: 0;
         overflow: hidden;
+        opacity: 0;
       }
       .nav-links.active {
-/*         display: flex; */
-         max-height: 500px; /* large enough to fit links */
-         opacity: 1;
+        max-height: 500px; /* large enough to fit links */
+        opacity: 1;
       }
       .menu-toggle {
         display: block;
-        font-size: 1.5rem;
-        cursor: pointer;
-        color: #fff;
       }
     }
+
     /* Backdrop overlay */
     .backdrop {
       position: fixed;
@@ -216,7 +214,7 @@
       <div class="menu-toggle">☰</div>
     </nav>
   </header>
-  
+
   <!-- Backdrop -->
   <div class="backdrop" id="backdrop"></div>
 
@@ -272,26 +270,23 @@
 
   <!-- JavaScript -->
   <script>
-    // Toggle Mobile Menu
+    // Elements
     const menuToggle = document.querySelector('.menu-toggle');
-    const navLinks = document.querySelector('.nav-links');
+    const navMenu = document.getElementById('navMenu');
     const backdrop = document.getElementById('backdrop');
-    // menuToggle.addEventListener('click', () => {
-    //   navLinks.classList.toggle('active');
-    // });
 
     // Toggle dropdown
     menuToggle.addEventListener('click', () => {
       navMenu.classList.toggle('active');
       backdrop.classList.toggle('active');
     });
-    
+
     // Close on backdrop click
     backdrop.addEventListener('click', () => {
       navMenu.classList.remove('active');
       backdrop.classList.remove('active');
     });
-    
+
     // Close when a nav link is clicked
     document.querySelectorAll('#navMenu a').forEach(link => {
       link.addEventListener('click', () => {
