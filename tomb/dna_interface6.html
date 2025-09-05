@@ -1,0 +1,2687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive DNA Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            overflow: hidden;
+            height: 100vh;
+            color: #00ff00;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #dna-viewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            z-index: 1;
+        }
+
+        #dna-viewer:active {
+            cursor: grabbing;
+        }
+
+        /* Terminal Mode Styles */
+        .terminal-window {
+            position: absolute;
+            width: 450px;
+            min-height: 300px;
+            background: #1e1e1e;
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .terminal-window.active {
+            display: flex;
+        }
+
+        .terminal-header {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: move;
+            border-bottom: 1px solid #357abd;
+        }
+
+        .terminal-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .close-btn { background: #ff5f56; }
+        .minimize-btn { background: #ffbd2e; }
+        .maximize-btn { background: #27ca3f; }
+
+        .terminal-title {
+            color: white;
+            font-size: 11px;
+            font-weight: normal;
+        }
+
+        .mode-toggle {
+            position: relative;
+            width: 140px;
+            height: 30px;
+            background: linear-gradient(135deg, #4a4a4a, #2a2a2a);
+            border: 2px solid #666;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            font-size: 9px;
+            color: white;
+            user-select: none;
+        }
+
+        .mode-toggle:hover {
+            transform: scale(1.05);
+            border-color: #888;
+        }
+
+        .mode-toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 66px;
+            height: 26px;
+            background: linear-gradient(135deg, #ff6b9d, #4ecdc4);
+            border-radius: 18px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        .mode-toggle.voice-mode .mode-toggle-slider {
+            transform: translateX(70px);
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .mode-toggle-option {
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 100%;
+            z-index: 2;
+            transition: all 0.3s ease;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-toggle-option.active {
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+        }
+
+        .mode-toggle-option.inactive {
+            color: #aaa;
+        }
+
+        .mode-icon {
+            font-size: 10px;
+        }
+
+        .terminal-content {
+            flex: 1;
+            background: #1e1e1e;
+            padding: 12px;
+            max-height: 350px;
+            overflow-y: auto;
+            color: #00ff00;
+            scrollbar-width: thin;
+            scrollbar-color: #4a90e2 #1e1e1e;
+        }
+
+        .terminal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-content::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        .terminal-content::-webkit-scrollbar-thumb {
+            background: #4a90e2;
+            border-radius: 4px;
+        }
+
+        .terminal-line {
+            margin-bottom: 4px;
+            line-height: 1.2;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+        }
+
+        .prompt { color: #4a90e2; }
+        .user-input { color: #ffffff; }
+        .system-response { color: #00ff00; }
+        .error-text { color: #ff6b6b; }
+
+        .terminal-input-area {
+            background: #1e1e1e;
+            padding: 8px 12px;
+            border-top: 1px solid #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-prompt {
+            color: #4a90e2;
+            font-weight: bold;
+        }
+
+        .terminal-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            font-size: 12px;
+            outline: none;
+            caret-color: #00ff00;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 14px;
+            background: #00ff00;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Voice Mode Styles */
+        .voice-interface {
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            background: linear-gradient(135deg, #0a1a2a, #1a2a3a);
+            border: 2px solid #00d4ff;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .voice-interface.active {
+            display: flex;
+        }
+
+        .voice-header {
+            background: linear-gradient(135deg, #00d4ff, #0095cc);
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: move;
+            border-bottom: 1px solid #00d4ff;
+        }
+
+        .voice-content {
+            flex: 1;
+            background: linear-gradient(135deg, #0a1a2a, #1a2a3a);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Futuristic HUD Background */
+        .voice-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 70%),
+                conic-gradient(from 0deg, rgba(0, 212, 255, 0.1) 0deg, rgba(0, 212, 255, 0.05) 90deg, rgba(0, 212, 255, 0.1) 180deg, rgba(0, 212, 255, 0.05) 270deg, rgba(0, 212, 255, 0.1) 360deg);
+            background-size: 100% 100%;
+            animation: rotate-bg 20s linear infinite;
+        }
+
+        @keyframes rotate-bg {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .sci-fi-title {
+            color: #00d4ff;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.8);
+            z-index: 10;
+        }
+
+        .voice-visualizer {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        /* Main HUD Circle - Exact replica of Image 1 */
+        .circular-visualizer {
+            width: 240px;
+            height: 240px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .circular-visualizer:hover {
+            transform: scale(1.02);
+        }
+
+        .circular-visualizer.active {
+            animation: pulse-active 2s ease-in-out infinite;
+        }
+
+        /* Outer rings - multiple concentric circles */
+        .outer-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 1px solid rgba(0, 212, 255, 0.4);
+        }
+
+        .outer-ring:nth-child(1) {
+            width: 240px;
+            height: 240px;
+            border-width: 2px;
+            border-color: #00d4ff;
+            animation: rotate 30s linear infinite;
+        }
+
+        .outer-ring:nth-child(2) {
+            width: 200px;
+            height: 200px;
+            border-color: rgba(0, 212, 255, 0.6);
+            animation: rotate-reverse 25s linear infinite;
+        }
+
+        .outer-ring:nth-child(3) {
+            width: 160px;
+            height: 160px;
+            border-color: rgba(0, 212, 255, 0.5);
+            animation: rotate 20s linear infinite;
+        }
+
+        .outer-ring:nth-child(4) {
+            width: 120px;
+            height: 120px;
+            border-color: rgba(0, 212, 255, 0.4);
+            animation: rotate-reverse 15s linear infinite;
+        }
+
+        /* Radar sweep lines */
+        .radar-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 120px;
+            height: 1px;
+            background: linear-gradient(to right, #00d4ff, transparent);
+            transform-origin: left center;
+            animation: radar-sweep 4s linear infinite;
+        }
+
+        .radar-line:nth-child(5) {
+            animation-delay: -1s;
+            opacity: 0.7;
+        }
+
+        .radar-line:nth-child(6) {
+            animation-delay: -2s;
+            opacity: 0.5;
+        }
+
+        /* Corner brackets - exactly like Image 1 */
+        .hud-bracket {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00d4ff;
+            pointer-events: none;
+        }
+
+        .hud-bracket.top-left {
+            top: 0;
+            left: 0;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .hud-bracket.top-right {
+            top: 0;
+            right: 0;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .hud-bracket.bottom-left {
+            bottom: 0;
+            left: 0;
+            border-right: none;
+            border-top: none;
+        }
+
+        .hud-bracket.bottom-right {
+            bottom: 0;
+            right: 0;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Center crosshair */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 1px solid #00d4ff;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.2) 0%, transparent 70%);
+        }
+
+        .crosshair::before,
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            background: #00d4ff;
+        }
+
+        .crosshair::before {
+            top: 50%;
+            left: -10px;
+            right: -10px;
+            height: 1px;
+            transform: translateY(-50%);
+        }
+
+        .crosshair::after {
+            left: 50%;
+            top: -10px;
+            bottom: -10px;
+            width: 1px;
+            transform: translateX(-50%);
+        }
+
+        /* Core circle - clickable center */
+        .core-circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.3) 0%, rgba(0, 212, 255, 0.1) 50%, transparent 100%);
+            border: 2px solid #00d4ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #00d4ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            z-index: 100;
+        }
+
+        .core-circle:hover {
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.5) 0%, rgba(0, 212, 255, 0.2) 50%, transparent 100%);
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.8);
+        }
+
+        .core-circle.listening {
+            background: radial-gradient(circle, rgba(255, 107, 107, 0.5) 0%, rgba(255, 107, 107, 0.2) 50%, transparent 100%);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+            box-shadow: 0 0 30px rgba(255, 107, 107, 0.8);
+            animation: pulse-red 1s ease-in-out infinite;
+        }
+
+        /* Directional indicators */
+        .direction-indicator {
+            position: absolute;
+            width: 6px;
+            height: 20px;
+            background: #00d4ff;
+            border-radius: 3px;
+        }
+
+        .direction-indicator:nth-child(7) {
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .direction-indicator:nth-child(8) {
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .direction-indicator:nth-child(9) {
+            right: -25px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+        }
+
+        .direction-indicator:nth-child(10) {
+            left: -25px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+        }
+
+        @keyframes rotate {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        @keyframes rotate-reverse {
+            from { transform: translate(-50%, -50%) rotate(360deg); }
+            to { transform: translate(-50%, -50%) rotate(0deg); }
+        }
+
+        @keyframes radar-sweep {
+            0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(-50%, -50%) rotate(360deg); opacity: 0; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+        @keyframes pulse-active {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.8); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 255, 1); }
+        }
+
+        .voice-status {
+            margin-top: 30px;
+            color: #00d4ff;
+            font-size: 12px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 10;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.6);
+        }
+
+        .listening-indicator {
+            color: #ff6b6b;
+            text-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes pulse-btn {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* Image Window Styles */
+        .image-window {
+            position: absolute;
+            width: 400px;
+            height: 300px;
+            background: #2d2d2d;
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
+            display: none;
+            flex-direction: column;
+            z-index: 1001;
+        }
+
+        .image-window.active {
+            display: flex;
+        }
+
+        .image-header {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            cursor: move;
+            border-bottom: 1px solid #357abd;
+        }
+
+        .image-content {
+            flex: 1;
+            background: #2d2d2d;
+            border: 2px solid #4a90e2;
+            margin: 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            font-size: 14px;
+            position: relative;
+            overflow: hidden;
+            white-space: pre-line;
+            text-align: center;
+        }
+
+        .image-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(74, 144, 226, 0.1) 0%, 
+                rgba(74, 144, 226, 0.05) 50%, 
+                rgba(74, 144, 226, 0.1) 100%);
+        }
+
+        .control-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            border: 1px solid #4a90e2;
+            border-radius: 20px;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="control-panel">
+            <button class="control-btn" id="reset-btn">Reset View</button>
+            <button class="control-btn" id="show-image-btn">Show Image Interface</button>
+        </div>
+
+        <div id="dna-viewer"></div>
+        
+        <!-- Terminal/Chat Mode -->
+        <div class="terminal-window" id="main-terminal">
+            <div class="terminal-header">
+                <div>
+                    <div class="terminal-controls">
+                        <button class="terminal-btn close-btn" onclick="closeTerminal()"></button>
+                        <button class="terminal-btn minimize-btn"></button>
+                        <button class="terminal-btn maximize-btn"></button>
+                    </div>
+                </div>
+                <span class="terminal-title">DNA Analysis Terminal</span>
+                <div class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
+                    <div class="mode-toggle-slider"></div>
+                    <div class="mode-toggle-option active">
+                        <span class="mode-icon">💬</span>
+                        <span>CHAT</span>
+                    </div>
+                    <div class="mode-toggle-option inactive">
+                        <span class="mode-icon">🎤</span>
+                        <span>VOICE</span>
+                    </div>
+                </div>
+            </div>
+            <div class="terminal-content" id="terminal-output">
+                <div class="terminal-line system-response">DNA Analysis System v2.1.0</div>
+                <div class="terminal-line system-response">Initializing molecular viewer...</div>
+                <div class="terminal-line system-response">Ready for nucleotide analysis.</div>
+                <div class="terminal-line"><span class="prompt">dna@analyzer:~$</span> <span class="cursor"></span></div>
+            </div>
+            <div class="terminal-input-area">
+                <span class="terminal-prompt">dna@analyzer:~$</span>
+                <input type="text" class="terminal-input" id="terminal-input" autofocus />
+            </div>
+        </div>
+
+        <!-- Voice Mode Interface -->
+        <div class="voice-interface" id="voice-interface">
+            <div class="voice-header">
+                <div>
+                    <div class="terminal-controls">
+                        <button class="terminal-btn close-btn" onclick="closeVoiceInterface()"></button>
+                        <button class="terminal-btn minimize-btn"></button>
+                        <button class="terminal-btn maximize-btn"></button>
+                    </div>
+                </div>
+                <span class="terminal-title">Voice Analysis Interface</span>
+                <div class="mode-toggle voice-mode" onclick="toggleMode()">
+                    <div class="mode-toggle-slider"></div>
+                    <div class="mode-toggle-option inactive">
+                        <span class="mode-icon">💬</span>
+                        <span>CHAT</span>
+                    </div>
+                    <div class="mode-toggle-option active">
+                        <span class="mode-icon">🎤</span>
+                        <span>VOICE</span>
+                    </div>
+                </div>
+            </div>
+            <div class="voice-content">
+                <div class="sci-fi-title">NEURAL VOICE INTERFACE</div>
+                
+                <div class="voice-visualizer">
+                    <div class="circular-visualizer" id="main-voice-control">
+                        <div class="outer-ring"></div>
+                        <div class="outer-ring"></div>
+                        <div class="outer-ring"></div>
+                        <div class="outer-ring"></div>
+                        <div class="radar-line"></div>
+                        <div class="radar-line"></div>
+                        <div class="radar-line"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="hud-bracket top-left"></div>
+                        <div class="hud-bracket top-right"></div>
+                        <div class="hud-bracket bottom-left"></div>
+                        <div class="hud-bracket bottom-right"></div>
+                        <div class="crosshair"></div>
+                        <div class="core-circle" id="voice-core">🎤</div>
+                    </div>
+                </div>
+                
+                <div class="voice-status" id="voice-status">READY FOR VOICE INPUT</div>
+            </div>
+        </div>
+
+        <!-- Image Display Window -->
+        <div class="image-window" id="image-display">
+            <div class="image-header">
+                <div class="terminal-controls">
+                    <button class="terminal-btn close-btn" onclick="closeImageWindow()"></button>
+                    <button class="terminal-btn minimize-btn"></button>
+                    <button class="terminal-btn maximize-btn"></button>
+                </div>
+                <span class="terminal-title" id="image-title">Analysis Result</span>
+            </div>
+            <div class="image-content" id="image-content">
+                <div>Nucleotide Structure Visualization</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DNA 3D Viewer Setup
+        let scene, camera, renderer, dnaGroup;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let blueBalls = [], redBalls = [];
+        let raycaster, mouse;
+        let currentNucleotideType = '';
+        let isVoiceMode = false;
+        let isListening = false;
+        let isSpeaking = false;
+
+        function initDNAViewer() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 0);
+            document.getElementById('dna-viewer').appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            dnaGroup = new THREE.Group();
+            createInteractiveDNA();
+            scene.add(dnaGroup);
+
+            camera.position.z = 20;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+            pointLight.position.set(15, 15, 15);
+            scene.add(pointLight);
+
+            const pointLight2 = new THREE.PointLight(0x4a90e2, 0.5, 100);
+            pointLight2.position.set(-15, -15, 15);
+            scene.add(pointLight2);
+
+            animate();
+        }
+
+        function createInteractiveDNA() {
+            const helixHeight = 25;
+            const helixRadius = 4;
+            const segments = 80;
+
+            // Create backbone strands
+            for (let strand = 0; strand < 2; strand++) {
+                const strandGeometry = new THREE.TubeGeometry(
+                    new THREE.CatmullRomCurve3(generateHelixPoints(helixHeight, helixRadius, segments, strand)),
+                    segments,
+                    0.08,
+                    8,
+                    false
+                );
+                
+                const strandMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xcccccc,
+                    shininess: 50,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                
+                const strandMesh = new THREE.Mesh(strandGeometry, strandMaterial);
+                dnaGroup.add(strandMesh);
+            }
+
+// Create nucleotide base pairs with clickable balls
+            for (let i = 0; i < segments; i += 2) {
+                const t = i / segments;
+                const y = (t - 0.5) * helixHeight;
+                const angle = t * Math.PI * 10;
+                
+                const x1 = Math.cos(angle) * helixRadius;
+                const z1 = Math.sin(angle) * helixRadius;
+                const x2 = Math.cos(angle + Math.PI) * helixRadius;
+                const z2 = Math.sin(angle + Math.PI) * helixRadius;
+
+                // Connection line between bases
+                const lineGeometry = new THREE.CylinderGeometry(0.03, 0.03, helixRadius * 2, 8);
+                const lineMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x666666,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const basePair = new THREE.Mesh(lineGeometry, lineMaterial);
+                basePair.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+                basePair.rotation.z = angle;
+                dnaGroup.add(basePair);
+
+                // Blue nucleotide (left side)
+                const blueBallGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+                const blueBallMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x0066ff,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const blueBall = new THREE.Mesh(blueBallGeometry, blueBallMaterial);
+                blueBall.position.set(x1, y, z1);
+                blueBall.userData = { type: 'blue', id: `blue_${i}`, position: i };
+                blueBalls.push(blueBall);
+                dnaGroup.add(blueBall);
+
+                // Red nucleotide (right side)
+                const redBallGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+                const redBallMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff3333,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const redBall = new THREE.Mesh(redBallGeometry, redBallMaterial);
+                redBall.position.set(x2, y, z2);
+                redBall.userData = { type: 'red', id: `red_${i}`, position: i };
+                redBalls.push(redBall);
+                dnaGroup.add(redBall);
+            }
+        }
+
+        function generateHelixPoints(height, radius, segments, strand) {
+            const points = [];
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const angle = t * Math.PI * 10 + (strand * Math.PI);
+                const x = Math.cos(angle) * radius;
+                const y = (t - 0.5) * height;
+                const z = Math.sin(angle) * radius;
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            return points;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!isDragging) {
+                dnaGroup.rotation.y += 0.003;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Mouse interaction handlers
+        function onMouseDown(event) {
+            if (event.target === renderer.domElement) {
+                isDragging = true;
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onMouseUp(event) {
+            if (isDragging) {
+                isDragging = false;
+            }
+        }
+
+        function onMouseMove(event) {
+            if (isDragging && dnaGroup) {
+                const deltaX = event.clientX - previousMousePosition.x;
+                const deltaY = event.clientY - previousMousePosition.y;
+                
+                dnaGroup.rotation.y += deltaX * 0.01;
+                dnaGroup.rotation.x += deltaY * 0.01;
+                dnaGroup.position.x += deltaX * 0.01;
+                
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onMouseClick(event) {
+            if (isDragging) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            
+            const allBalls = [...blueBalls, ...redBalls];
+            const intersects = raycaster.intersectObjects(allBalls);
+
+            if (intersects.length > 0) {
+                const clickedBall = intersects[0].object;
+                currentNucleotideType = clickedBall.userData.type;
+                const position = clickedBall.userData.position;
+                
+                if (isVoiceMode) {
+                    positionVoiceInterfaceNearBall(clickedBall);
+                    showVoiceInterface();
+                    updateVoiceStatus(`Voice mode activated for ${currentNucleotideType.toUpperCase()}_${position}`);
+                } else {
+                    positionTerminalNearBall(clickedBall);
+                    showTerminal();
+                    addTerminalLine(`Nucleotide ${currentNucleotideType.toUpperCase()}_${position} selected`, 'system-response');
+                    addTerminalLine(`Position: ${position}, Type: ${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} base`, 'system-response');
+                    addTerminalLine(`Ready for analysis commands...`, 'system-response');
+                }
+            }
+        }
+
+        function positionTerminalNearBall(ball) {
+            const vector = new THREE.Vector3();
+            ball.getWorldPosition(vector);
+            vector.project(camera);
+
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+            const terminal = document.getElementById('main-terminal');
+            terminal.style.left = Math.max(20, Math.min(x + 20, window.innerWidth - 470)) + 'px';
+            terminal.style.top = Math.max(20, Math.min(y, window.innerHeight - 350)) + 'px';
+        }
+
+        function positionVoiceInterfaceNearBall(ball) {
+            const vector = new THREE.Vector3();
+            ball.getWorldPosition(vector);
+            vector.project(camera);
+
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+            const voiceInterface = document.getElementById('voice-interface');
+            voiceInterface.style.left = Math.max(20, Math.min(x + 20, window.innerWidth - 470)) + 'px';
+            voiceInterface.style.top = Math.max(20, Math.min(y, window.innerHeight - 470)) + 'px';
+        }
+
+        function showTerminal() {
+            document.getElementById('main-terminal').classList.add('active');
+            document.getElementById('voice-interface').classList.remove('active');
+        }
+
+        function showVoiceInterface() {
+            document.getElementById('voice-interface').classList.add('active');
+            document.getElementById('main-terminal').classList.remove('active');
+        }
+
+        function closeTerminal() {
+            document.getElementById('main-terminal').classList.remove('active');
+        }
+
+        function closeVoiceInterface() {
+            document.getElementById('voice-interface').classList.remove('active');
+        }
+
+        function closeImageWindow() {
+            document.getElementById('image-display').classList.remove('active');
+        }
+
+        function showImageWindow(title, content) {
+            const imageWindow = document.getElementById('image-display');
+            const imageTitle = document.getElementById('image-title');
+            const imageContent = document.getElementById('image-content');
+            
+            imageTitle.textContent = title;
+            imageContent.innerHTML = `<div>${content}</div>`;
+            
+            // Position near active interface
+            const activeInterface = isVoiceMode ? 
+                document.getElementById('voice-interface') : 
+                document.getElementById('main-terminal');
+            const activeRect = activeInterface.getBoundingClientRect();
+            imageWindow.style.left = (activeRect.right + 20) + 'px';
+            imageWindow.style.top = activeRect.top + 'px';
+            
+            imageWindow.classList.add('active');
+        }
+
+        function updateVoiceStatus(message) {
+            document.getElementById('voice-status').textContent = message;
+        }
+
+        function toggleMode() {
+            isVoiceMode = !isVoiceMode;
+            const terminalToggle = document.querySelector('#main-terminal .mode-toggle');
+            const voiceToggle = document.querySelector('#voice-interface .mode-toggle');
+            const terminal = document.getElementById('main-terminal');
+            const voiceInterface = document.getElementById('voice-interface');
+            
+            // Update toggle states with smooth animation
+            if (isVoiceMode) {
+                // Update terminal toggle to show voice is active
+                if (terminalToggle) {
+                    terminalToggle.classList.add('voice-mode');
+                    const terminalOptions = terminalToggle.querySelectorAll('.mode-toggle-option');
+                    terminalOptions[0].classList.remove('active');
+                    terminalOptions[0].classList.add('inactive');
+                    terminalOptions[1].classList.remove('inactive');
+                    terminalOptions[1].classList.add('active');
+                }
+                
+                // Update voice toggle
+                if (voiceToggle) {
+                    voiceToggle.classList.add('voice-mode');
+                    const voiceOptions = voiceToggle.querySelectorAll('.mode-toggle-option');
+                    voiceOptions[0].classList.remove('active');
+                    voiceOptions[0].classList.add('inactive');
+                    voiceOptions[1].classList.remove('inactive');
+                    voiceOptions[1].classList.add('active');
+                }
+                
+                // Smooth transition between interfaces
+                if (terminal.classList.contains('active')) {
+                    terminal.style.transform = 'scale(0.95)';
+                    terminal.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        terminal.classList.remove('active');
+                        voiceInterface.classList.add('active');
+                        voiceInterface.style.transform = 'scale(1.05)';
+                        voiceInterface.style.opacity = '0';
+                        
+                        setTimeout(() => {
+                            voiceInterface.style.transform = 'scale(1)';
+                            voiceInterface.style.opacity = '1';
+                        }, 50);
+                    }, 200);
+                }
+            } else {
+                // Update terminal toggle to show chat is active
+                if (terminalToggle) {
+                    terminalToggle.classList.remove('voice-mode');
+                    const terminalOptions = terminalToggle.querySelectorAll('.mode-toggle-option');
+                    terminalOptions[0].classList.remove('inactive');
+                    terminalOptions[0].classList.add('active');
+                    terminalOptions[1].classList.remove('active');
+                    terminalOptions[1].classList.add('inactive');
+                }
+                
+                // Update voice toggle
+                if (voiceToggle) {
+                    voiceToggle.classList.remove('voice-mode');
+                    const voiceOptions = voiceToggle.querySelectorAll('.mode-toggle-option');
+                    voiceOptions[0].classList.remove('inactive');
+                    voiceOptions[0].classList.add('active');
+                    voiceOptions[1].classList.remove('active');
+                    voiceOptions[1].classList.add('inactive');
+                }
+                
+                // Smooth transition between interfaces
+                if (voiceInterface.classList.contains('active')) {
+                    voiceInterface.style.transform = 'scale(0.95)';
+                    voiceInterface.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        voiceInterface.classList.remove('active');
+                        terminal.classList.add('active');
+                        terminal.style.transform = 'scale(1.05)';
+                        terminal.style.opacity = '0';
+                        
+                        setTimeout(() => {
+                            terminal.style.transform = 'scale(1)';
+                            terminal.style.opacity = '1';
+                        }, 50);
+                    }, 200);
+                }
+            }
+        }
+
+        function toggleVoiceControl() {
+            const voiceCore = document.getElementById('voice-core');
+            const mainControl = document.getElementById('main-voice-control');
+            const voiceStatus = document.getElementById('voice-status');
+            
+            if (!isListening) {
+                // Start listening
+                isListening = true;
+                voiceCore.classList.add('listening');
+                voiceCore.innerHTML = '🔊';
+                mainControl.classList.add('active');
+                voiceStatus.innerHTML = '<span class="listening-indicator">NEURAL LINK ACTIVE - LISTENING...</span>';
+                
+                // Simulate voice processing after 3 seconds
+                setTimeout(() => {
+                    if (isListening) {
+                        voiceStatus.textContent = 'PROCESSING NEURAL PATTERNS...';
+                        setTimeout(() => {
+                            if (isListening) {
+                                voiceStatus.textContent = 'GENERATING VOICE RESPONSE...';
+                                simulateVoiceResponse();
+                            }
+                        }, 1500);
+                    }
+                }, 3000);
+            } else {
+                // Stop listening
+                isListening = false;
+                voiceCore.classList.remove('listening');
+                voiceCore.innerHTML = '🎤';
+                mainControl.classList.remove('active');
+                voiceStatus.textContent = 'NEURAL INTERFACE READY';
+            }
+        }
+
+        function simulateVoiceResponse() {
+            const voiceCore = document.getElementById('voice-core');
+            const mainControl = document.getElementById('main-voice-control');
+            const responses = [
+                `Neural analysis complete for ${currentNucleotideType} nucleotide`,
+                `Molecular structure identified: ${currentNucleotideType === 'blue' ? 'Adenine base detected' : 'Guanine base detected'}`,
+                `Voice pattern recognition successful`,
+                `Neural network analysis of nucleotide properties ready`
+            ];
+            
+            const response = responses[Math.floor(Math.random() * responses.length)];
+            updateVoiceStatus('GENERATING NEURAL RESPONSE...');
+            
+            // Switch to speaker mode
+            voiceCore.innerHTML = '🔊';
+            voiceCore.classList.remove('listening');
+            isSpeaking = true;
+            
+            setTimeout(() => {
+                updateVoiceStatus('NEURAL OUTPUT ACTIVE...');
+                
+                // Show analysis result
+                setTimeout(() => {
+                    showImageWindow(
+                        `Neural Analysis: ${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} Nucleotide`,
+                        `Neural Pattern Analysis\n${response}\nFrequency: ${Math.floor(Math.random() * 1000 + 2000)} Hz\nNeural Confidence: ${Math.floor(Math.random() * 20 + 80)}%`
+                    );
+                }, 1000);
+                
+                // Complete the cycle
+                setTimeout(() => {
+                    voiceCore.innerHTML = '🎤';
+                    mainControl.classList.remove('active');
+                    updateVoiceStatus('NEURAL INTERFACE READY');
+                    isListening = false;
+                    isSpeaking = false;
+                }, 4000);
+            }, 1000);
+        }
+
+        // Event listeners
+        document.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('click', onMouseClick);
+
+        // Voice control event listener
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'voice-core' || e.target.closest('#main-voice-control')) {
+                e.stopPropagation();
+                toggleVoiceControl();
+            }
+        });
+
+        // Reset button
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            dnaGroup.position.set(0, 0, 0);
+            dnaGroup.rotation.set(0, 0, 0);
+            camera.position.set(0, 0, 20);
+        });
+
+        // Show image button (for testing)
+        document.getElementById('show-image-btn').addEventListener('click', function() {
+            showImageWindow('Test Image Interface', 'This is a test of the image display interface\nYou can see how images would be shown here');
+        });
+
+        // Terminal functionality
+        function addTerminalLine(text, className = 'system-response') {
+            const output = document.getElementById('terminal-output');
+            const line = document.createElement('div');
+            line.className = `terminal-line ${className}`;
+            line.innerHTML = text;
+            
+            // Remove cursor from last line
+            const lastLine = output.lastElementChild;
+            if (lastLine && lastLine.innerHTML.includes('cursor')) {
+                lastLine.innerHTML = lastLine.innerHTML.replace(/<span class="cursor"><\/span>/, '');
+            }
+            
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+            
+            // Add new cursor
+            const newLine = document.createElement('div');
+            newLine.className = 'terminal-line';
+            newLine.innerHTML = '<span class="prompt">dna@analyzer:~$</span> <span class="cursor"></span>';
+            output.appendChild(newLine);
+        }
+
+        function processCommand(command) {
+            const cmd = command.toLowerCase().trim();
+            
+            // Show user input
+            addTerminalLine(`<span class="prompt">dna@analyzer:~$</span> <span class="user-input">${command}</span>`);
+            
+            // Process commands
+            if (cmd.includes('analyze') || cmd.includes('analysis')) {
+                addTerminalLine('Running nucleotide analysis...', 'system-response');
+                setTimeout(() => {
+                    addTerminalLine(`Analysis complete for ${currentNucleotideType} nucleotide`, 'system-response');
+                    addTerminalLine('Generating visualization...', 'system-response');
+                    setTimeout(() => {
+                        showImageWindow(`${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} Nucleotide Analysis`, 
+                                     `${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} Nucleotide Structure\nMolecular Weight: ${currentNucleotideType === 'blue' ? '331.2' : '347.2'} g/mol\nBase Pairing: ${currentNucleotideType === 'blue' ? 'A-T bonding' : 'G-C bonding'}\nH-Bonds: ${currentNucleotideType === 'blue' ? '2' : '3'}`);
+                    }, 1000);
+                }, 1500);
+            } else if (cmd.includes('structure') || cmd.includes('struct')) {
+                addTerminalLine('Retrieving structural data...', 'system-response');
+                setTimeout(() => {
+                    addTerminalLine(`${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} nucleotide structural analysis complete`, 'system-response');
+                    addTerminalLine(`Base type: ${currentNucleotideType === 'blue' ? 'Purine (Adenine/Thymine)' : 'Pyrimidine (Guanine/Cytosine)'}`, 'system-response');
+                    addTerminalLine(`Ring structure: ${currentNucleotideType === 'blue' ? 'Double ring' : 'Single ring'}`, 'system-response');
+                }, 1000);
+            } else if (cmd.includes('sequence') || cmd.includes('seq')) {
+                addTerminalLine('Generating sequence data...', 'system-response');
+                const sequence = Array.from({length: 20}, () => ['A', 'T', 'G', 'C'][Math.floor(Math.random() * 4)]).join('');
+                setTimeout(() => {
+                    addTerminalLine(`Sample sequence: ${sequence}`, 'system-response');
+                    addTerminalLine('Sequence analysis complete', 'system-response');
+                }, 1000);
+            } else if (cmd.includes('bond') || cmd.includes('binding')) {
+                addTerminalLine('Analyzing hydrogen bonding...', 'system-response');
+                setTimeout(() => {
+                    addTerminalLine(`${currentNucleotideType === 'blue' ? 'A-T base pair: 2 hydrogen bonds' : 'G-C base pair: 3 hydrogen bonds'}`, 'system-response');
+                    addTerminalLine(`Bond strength: ${currentNucleotideType === 'blue' ? 'Moderate' : 'Strong'}`, 'system-response');
+                }, 1000);
+            } else if (cmd.includes('help')) {
+                addTerminalLine('Available commands:', 'system-response');
+                addTerminalLine('  analyze - Run nucleotide analysis', 'system-response');
+                addTerminalLine('  structure - Show structural data', 'system-response');
+                addTerminalLine('  sequence - Generate sequence data', 'system-response');
+                addTerminalLine('  bond - Analyze hydrogen bonding', 'system-response');
+                addTerminalLine('  clear - Clear terminal', 'system-response');
+                addTerminalLine('  help - Show this help', 'system-response');
+            } else if (cmd.includes('clear')) {
+                document.getElementById('terminal-output').innerHTML = '';
+                addTerminalLine('Terminal cleared', 'system-response');
+            } else if (cmd === '') {
+                // Do nothing for empty command
+            } else {
+                addTerminalLine(`Command not recognized: ${command}`, 'error-text');
+                addTerminalLine('Type "help" for available commands', 'system-response');
+            }
+        }
+
+        // Terminal input handling
+        document.getElementById('terminal-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('terminal-input');
+                const command = input.value;
+                processCommand(command);
+                input.value = '';
+            }
+        });
+
+        // Make windows draggable
+        let draggedWindow = null;
+        let windowOffset = { x: 0, y: 0 };
+
+        document.querySelectorAll('.terminal-header, .image-header, .voice-header').forEach(header => {
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('terminal-btn') || e.target.classList.contains('mode-toggle')) return;
+                draggedWindow = header.closest('.terminal-window, .image-window, .voice-interface');
+                const rect = draggedWindow.getBoundingClientRect();
+                windowOffset.x = e.clientX - rect.left;
+                windowOffset.y = e.clientY - rect.top;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (draggedWindow) {
+                draggedWindow.style.left = (e.clientX - windowOffset.x) + 'px';
+                draggedWindow.style.top = (e.clientY - windowOffset.y) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            draggedWindow = null;
+        });
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        initDNAViewer();
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive DNA Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            overflow: hidden;
+            height: 100vh;
+            color: #00ff00;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #dna-viewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            z-index: 1;
+        }
+
+        #dna-viewer:active {
+            cursor: grabbing;
+        }
+
+        /* Terminal Mode Styles */
+        .terminal-window {
+            position: absolute;
+            width: 450px;
+            min-height: 300px;
+            background: #1e1e1e;
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .terminal-window.active {
+            display: flex;
+        }
+
+        .terminal-header {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: move;
+            border-bottom: 1px solid #357abd;
+        }
+
+        .terminal-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .close-btn { background: #ff5f56; }
+        .minimize-btn { background: #ffbd2e; }
+        .maximize-btn { background: #27ca3f; }
+
+        .terminal-title {
+            color: white;
+            font-size: 11px;
+            font-weight: normal;
+        }
+
+        .mode-toggle {
+            position: relative;
+            width: 140px;
+            height: 30px;
+            background: linear-gradient(135deg, #4a4a4a, #2a2a2a);
+            border: 2px solid #666;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            font-size: 9px;
+            color: white;
+            user-select: none;
+        }
+
+        .mode-toggle:hover {
+            transform: scale(1.05);
+            border-color: #888;
+        }
+
+        .mode-toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 66px;
+            height: 26px;
+            background: linear-gradient(135deg, #ff6b9d, #4ecdc4);
+            border-radius: 18px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        .mode-toggle.voice-mode .mode-toggle-slider {
+            transform: translateX(70px);
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .mode-toggle-option {
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 100%;
+            z-index: 2;
+            transition: all 0.3s ease;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-toggle-option.active {
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+        }
+
+        .mode-toggle-option.inactive {
+            color: #aaa;
+        }
+
+        .mode-icon {
+            font-size: 10px;
+        }
+
+        .terminal-content {
+            flex: 1;
+            background: #1e1e1e;
+            padding: 12px;
+            max-height: 350px;
+            overflow-y: auto;
+            color: #00ff00;
+            scrollbar-width: thin;
+            scrollbar-color: #4a90e2 #1e1e1e;
+        }
+
+        .terminal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-content::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        .terminal-content::-webkit-scrollbar-thumb {
+            background: #4a90e2;
+            border-radius: 4px;
+        }
+
+        .terminal-line {
+            margin-bottom: 4px;
+            line-height: 1.2;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+        }
+
+        .prompt { color: #4a90e2; }
+        .user-input { color: #ffffff; }
+        .system-response { color: #00ff00; }
+        .error-text { color: #ff6b6b; }
+
+        .terminal-input-area {
+            background: #1e1e1e;
+            padding: 8px 12px;
+            border-top: 1px solid #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-prompt {
+            color: #4a90e2;
+            font-weight: bold;
+        }
+
+        .terminal-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            font-size: 12px;
+            outline: none;
+            caret-color: #00ff00;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 14px;
+            background: #00ff00;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Voice Mode Styles */
+        .voice-interface {
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            background: linear-gradient(135deg, #0a1a2a, #1a2a3a);
+            border: 2px solid #00d4ff;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .voice-interface.active {
+            display: flex;
+        }
+
+        .voice-header {
+            background: linear-gradient(135deg, #00d4ff, #0095cc);
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: move;
+            border-bottom: 1px solid #00d4ff;
+        }
+
+        .voice-content {
+            flex: 1;
+            background: linear-gradient(135deg, #0a1a2a, #1a2a3a);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Futuristic HUD Background */
+        .voice-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 70%),
+                conic-gradient(from 0deg, rgba(0, 212, 255, 0.1) 0deg, rgba(0, 212, 255, 0.05) 90deg, rgba(0, 212, 255, 0.1) 180deg, rgba(0, 212, 255, 0.05) 270deg, rgba(0, 212, 255, 0.1) 360deg);
+            background-size: 100% 100%;
+            animation: rotate-bg 20s linear infinite;
+        }
+
+        @keyframes rotate-bg {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .sci-fi-title {
+            color: #00d4ff;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.8);
+            z-index: 10;
+        }
+
+        .voice-visualizer {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        /* Main HUD Circle - Exact replica of Image 1 */
+        .circular-visualizer {
+            width: 240px;
+            height: 240px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .circular-visualizer:hover {
+            transform: scale(1.02);
+        }
+
+        .circular-visualizer.active {
+            animation: pulse-active 2s ease-in-out infinite;
+        }
+
+        /* Outer rings - multiple concentric circles */
+        .outer-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 1px solid rgba(0, 212, 255, 0.4);
+        }
+
+        .outer-ring:nth-child(1) {
+            width: 240px;
+            height: 240px;
+            border-width: 2px;
+            border-color: #00d4ff;
+            animation: rotate 30s linear infinite;
+        }
+
+        .outer-ring:nth-child(2) {
+            width: 200px;
+            height: 200px;
+            border-color: rgba(0, 212, 255, 0.6);
+            animation: rotate-reverse 25s linear infinite;
+        }
+
+        .outer-ring:nth-child(3) {
+            width: 160px;
+            height: 160px;
+            border-color: rgba(0, 212, 255, 0.5);
+            animation: rotate 20s linear infinite;
+        }
+
+        .outer-ring:nth-child(4) {
+            width: 120px;
+            height: 120px;
+            border-color: rgba(0, 212, 255, 0.4);
+            animation: rotate-reverse 15s linear infinite;
+        }
+
+        /* Radar sweep lines */
+        .radar-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 120px;
+            height: 1px;
+            background: linear-gradient(to right, #00d4ff, transparent);
+            transform-origin: left center;
+            animation: radar-sweep 4s linear infinite;
+        }
+
+        .radar-line:nth-child(5) {
+            animation-delay: -1s;
+            opacity: 0.7;
+        }
+
+        .radar-line:nth-child(6) {
+            animation-delay: -2s;
+            opacity: 0.5;
+        }
+
+        /* Corner brackets - exactly like Image 1 */
+        .hud-bracket {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00d4ff;
+            pointer-events: none;
+        }
+
+        .hud-bracket.top-left {
+            top: 0;
+            left: 0;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .hud-bracket.top-right {
+            top: 0;
+            right: 0;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .hud-bracket.bottom-left {
+            bottom: 0;
+            left: 0;
+            border-right: none;
+            border-top: none;
+        }
+
+        .hud-bracket.bottom-right {
+            bottom: 0;
+            right: 0;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Center crosshair */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 1px solid #00d4ff;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.2) 0%, transparent 70%);
+        }
+
+        .crosshair::before,
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            background: #00d4ff;
+        }
+
+        .crosshair::before {
+            top: 50%;
+            left: -10px;
+            right: -10px;
+            height: 1px;
+            transform: translateY(-50%);
+        }
+
+        .crosshair::after {
+            left: 50%;
+            top: -10px;
+            bottom: -10px;
+            width: 1px;
+            transform: translateX(-50%);
+        }
+
+        /* Core circle - clickable center */
+        .core-circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.3) 0%, rgba(0, 212, 255, 0.1) 50%, transparent 100%);
+            border: 2px solid #00d4ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #00d4ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            z-index: 100;
+        }
+
+        .core-circle:hover {
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.5) 0%, rgba(0, 212, 255, 0.2) 50%, transparent 100%);
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.8);
+        }
+
+        .core-circle.listening {
+            background: radial-gradient(circle, rgba(255, 107, 107, 0.5) 0%, rgba(255, 107, 107, 0.2) 50%, transparent 100%);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+            box-shadow: 0 0 30px rgba(255, 107, 107, 0.8);
+            animation: pulse-red 1s ease-in-out infinite;
+        }
+
+        /* Directional indicators */
+        .direction-indicator {
+            position: absolute;
+            width: 6px;
+            height: 20px;
+            background: #00d4ff;
+            border-radius: 3px;
+        }
+
+        .direction-indicator:nth-child(7) {
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .direction-indicator:nth-child(8) {
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .direction-indicator:nth-child(9) {
+            right: -25px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+        }
+
+        .direction-indicator:nth-child(10) {
+            left: -25px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+        }
+
+        @keyframes rotate {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        @keyframes rotate-reverse {
+            from { transform: translate(-50%, -50%) rotate(360deg); }
+            to { transform: translate(-50%, -50%) rotate(0deg); }
+        }
+
+        @keyframes radar-sweep {
+            0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(-50%, -50%) rotate(360deg); opacity: 0; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+        @keyframes pulse-active {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.8); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 255, 1); }
+        }
+
+        .voice-status {
+            margin-top: 30px;
+            color: #00d4ff;
+            font-size: 12px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 10;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.6);
+        }
+
+        .listening-indicator {
+            color: #ff6b6b;
+            text-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes pulse-btn {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* Image Window Styles */
+        .image-window {
+            position: absolute;
+            width: 400px;
+            height: 300px;
+            background: #2d2d2d;
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
+            display: none;
+            flex-direction: column;
+            z-index: 1001;
+        }
+
+        .image-window.active {
+            display: flex;
+        }
+
+        .image-header {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            cursor: move;
+            border-bottom: 1px solid #357abd;
+        }
+
+        .image-content {
+            flex: 1;
+            background: #2d2d2d;
+            border: 2px solid #4a90e2;
+            margin: 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            font-size: 14px;
+            position: relative;
+            overflow: hidden;
+            white-space: pre-line;
+            text-align: center;
+        }
+
+        .image-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(74, 144, 226, 0.1) 0%, 
+                rgba(74, 144, 226, 0.05) 50%, 
+                rgba(74, 144, 226, 0.1) 100%);
+        }
+
+        .control-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            border: 1px solid #4a90e2;
+            border-radius: 20px;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="control-panel">
+            <button class="control-btn" id="reset-btn">Reset View</button>
+            <button class="control-btn" id="show-image-btn">Show Image Interface</button>
+        </div>
+
+        <div id="dna-viewer"></div>
+        
+        <!-- Terminal/Chat Mode -->
+        <div class="terminal-window" id="main-terminal">
+            <div class="terminal-header">
+                <div>
+                    <div class="terminal-controls">
+                        <button class="terminal-btn close-btn" onclick="closeTerminal()"></button>
+                        <button class="terminal-btn minimize-btn"></button>
+                        <button class="terminal-btn maximize-btn"></button>
+                    </div>
+                </div>
+                <span class="terminal-title">DNA Analysis Terminal</span>
+                <div class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
+                    <div class="mode-toggle-slider"></div>
+                    <div class="mode-toggle-option active">
+                        <span class="mode-icon">💬</span>
+                        <span>CHAT</span>
+                    </div>
+                    <div class="mode-toggle-option inactive">
+                        <span class="mode-icon">🎤</span>
+                        <span>VOICE</span>
+                    </div>
+                </div>
+            </div>
+            <div class="terminal-content" id="terminal-output">
+                <div class="terminal-line system-response">DNA Analysis System v2.1.0</div>
+                <div class="terminal-line system-response">Initializing molecular viewer...</div>
+                <div class="terminal-line system-response">Ready for nucleotide analysis.</div>
+                <div class="terminal-line"><span class="prompt">dna@analyzer:~$</span> <span class="cursor"></span></div>
+            </div>
+            <div class="terminal-input-area">
+                <span class="terminal-prompt">dna@analyzer:~$</span>
+                <input type="text" class="terminal-input" id="terminal-input" autofocus />
+            </div>
+        </div>
+
+        <!-- Voice Mode Interface -->
+        <div class="voice-interface" id="voice-interface">
+            <div class="voice-header">
+                <div>
+                    <div class="terminal-controls">
+                        <button class="terminal-btn close-btn" onclick="closeVoiceInterface()"></button>
+                        <button class="terminal-btn minimize-btn"></button>
+                        <button class="terminal-btn maximize-btn"></button>
+                    </div>
+                </div>
+                <span class="terminal-title">Voice Analysis Interface</span>
+                <div class="mode-toggle voice-mode" onclick="toggleMode()">
+                    <div class="mode-toggle-slider"></div>
+                    <div class="mode-toggle-option inactive">
+                        <span class="mode-icon">💬</span>
+                        <span>CHAT</span>
+                    </div>
+                    <div class="mode-toggle-option active">
+                        <span class="mode-icon">🎤</span>
+                        <span>VOICE</span>
+                    </div>
+                </div>
+            </div>
+            <div class="voice-content">
+                <div class="sci-fi-title">NEURAL VOICE INTERFACE</div>
+                
+                <div class="voice-visualizer">
+                    <div class="circular-visualizer" id="main-voice-control">
+                        <div class="outer-ring"></div>
+                        <div class="outer-ring"></div>
+                        <div class="outer-ring"></div>
+                        <div class="outer-ring"></div>
+                        <div class="radar-line"></div>
+                        <div class="radar-line"></div>
+                        <div class="radar-line"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="direction-indicator"></div>
+                        <div class="hud-bracket top-left"></div>
+                        <div class="hud-bracket top-right"></div>
+                        <div class="hud-bracket bottom-left"></div>
+                        <div class="hud-bracket bottom-right"></div>
+                        <div class="crosshair"></div>
+                        <div class="core-circle" id="voice-core">🎤</div>
+                    </div>
+                </div>
+                
+                <div class="voice-status" id="voice-status">READY FOR VOICE INPUT</div>
+            </div>
+        </div>
+
+        <!-- Image Display Window -->
+        <div class="image-window" id="image-display">
+            <div class="image-header">
+                <div class="terminal-controls">
+                    <button class="terminal-btn close-btn" onclick="closeImageWindow()"></button>
+                    <button class="terminal-btn minimize-btn"></button>
+                    <button class="terminal-btn maximize-btn"></button>
+                </div>
+                <span class="terminal-title" id="image-title">Analysis Result</span>
+            </div>
+            <div class="image-content" id="image-content">
+                <div>Nucleotide Structure Visualization</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DNA 3D Viewer Setup
+        let scene, camera, renderer, dnaGroup;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let blueBalls = [], redBalls = [];
+        let raycaster, mouse;
+        let currentNucleotideType = '';
+        let isVoiceMode = false;
+        let isListening = false;
+        let isSpeaking = false;
+
+        function initDNAViewer() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 0);
+            document.getElementById('dna-viewer').appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            dnaGroup = new THREE.Group();
+            createInteractiveDNA();
+            scene.add(dnaGroup);
+
+            camera.position.z = 20;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+            pointLight.position.set(15, 15, 15);
+            scene.add(pointLight);
+
+            const pointLight2 = new THREE.PointLight(0x4a90e2, 0.5, 100);
+            pointLight2.position.set(-15, -15, 15);
+            scene.add(pointLight2);
+
+            animate();
+        }
+
+        function createInteractiveDNA() {
+            const helixHeight = 25;
+            const helixRadius = 4;
+            const segments = 80;
+
+            // Create backbone strands
+            for (let strand = 0; strand < 2; strand++) {
+                const strandGeometry = new THREE.TubeGeometry(
+                    new THREE.CatmullRomCurve3(generateHelixPoints(helixHeight, helixRadius, segments, strand)),
+                    segments,
+                    0.08,
+                    8,
+                    false
+                );
+                
+                const strandMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xcccccc,
+                    shininess: 50,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                
+                const strandMesh = new THREE.Mesh(strandGeometry, strandMaterial);
+                dnaGroup.add(strandMesh);
+            }
+
+            // Create nucleotide base pairs with clickable balls
+            for (let i = 0; i < segments; i += 2) {
+                const t = i / segments;
+                const y = (t - 0.5) * helixHeight;
+                const angle = t * Math.PI * 10;
+                
+                const x1 = Math.cos(angle) * helixRadius;
+                const z1 = Math.sin(angle) * helixRadius;
+                const x2 = Math.cos(angle + Math.PI) * helixRadius;
+                const z2 = Math.sin(angle + Math.PI) * helixRadius;
+
+                // Connection line between bases
+                const lineGeometry = new THREE.CylinderGeometry(0.03, 0.03, helixRadius * 2, 8);
+                const lineMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x666666,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const basePair = new THREE.Mesh(lineGeometry, lineMaterial);
+                basePair.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+                basePair.rotation.z = angle;
+                dnaGroup.add(basePair);
+
+                // Blue nucleotide (left side)
+                const blueBallGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+                const blueBallMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x0066ff,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const blueBall = new THREE.Mesh(blueBallGeometry, blueBallMaterial);
+                blueBall.position.set(x1, y, z1);
+                blueBall.userData = { type: 'blue', id: `blue_${i}`, position: i };
+                blueBalls.push(blueBall);
+                dnaGroup.add(blueBall);
+
+                // Red nucleotide (right side)
+                const redBallGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+                const redBallMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xff3333,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const redBall = new THREE.Mesh(redBallGeometry, redBallMaterial);
+                redBall.position.set(x2, y, z2);
+                redBall.userData = { type: 'red', id: `red_${i}`, position: i };
+                redBalls.push(redBall);
+                dnaGroup.add(redBall);
+            }
+        }
+
+        function generateHelixPoints(height, radius, segments, strand) {
+            const points = [];
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const angle = t * Math.PI * 10 + (strand * Math.PI);
+                const x = Math.cos(angle) * radius;
+                const y = (t - 0.5) * height;
+                const z = Math.sin(angle) * radius;
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            return points;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!isDragging) {
+                dnaGroup.rotation.y += 0.003;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Mouse interaction handlers
+        function onMouseDown(event) {
+            if (event.target === renderer.domElement) {
+                isDragging = true;
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onMouseUp(event) {
+            if (isDragging) {
+                isDragging = false;
+            }
+        }
+
+        function onMouseMove(event) {
+            if (isDragging && dnaGroup) {
+                const deltaX = event.clientX - previousMousePosition.x;
+                const deltaY = event.clientY - previousMousePosition.y;
+                
+                dnaGroup.rotation.y += deltaX * 0.01;
+                dnaGroup.rotation.x += deltaY * 0.01;
+                dnaGroup.position.x += deltaX * 0.01;
+                
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onMouseClick(event) {
+            if (isDragging) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            
+            const allBalls = [...blueBalls, ...redBalls];
+            const intersects = raycaster.intersectObjects(allBalls);
+
+            if (intersects.length > 0) {
+                const clickedBall = intersects[0].object;
+                currentNucleotideType = clickedBall.userData.type;
+                const position = clickedBall.userData.position;
+                
+                if (isVoiceMode) {
+                    positionVoiceInterfaceNearBall(clickedBall);
+                    showVoiceInterface();
+                    updateVoiceStatus(`Voice mode activated for ${currentNucleotideType.toUpperCase()}_${position}`);
+                } else {
+                    positionTerminalNearBall(clickedBall);
+                    showTerminal();
+                    addTerminalLine(`Nucleotide ${currentNucleotideType.toUpperCase()}_${position} selected`, 'system-response');
+                    addTerminalLine(`Position: ${position}, Type: ${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} base`, 'system-response');
+                    addTerminalLine(`Ready for analysis commands...`, 'system-response');
+                }
+            }
+        }
+
+        function positionTerminalNearBall(ball) {
+            const vector = new THREE.Vector3();
+            ball.getWorldPosition(vector);
+            vector.project(camera);
+
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+            const terminal = document.getElementById('main-terminal');
+            terminal.style.left = Math.max(20, Math.min(x + 20, window.innerWidth - 470)) + 'px';
+            terminal.style.top = Math.max(20, Math.min(y, window.innerHeight - 350)) + 'px';
+        }
+
+        function positionVoiceInterfaceNearBall(ball) {
+            const vector = new THREE.Vector3();
+            ball.getWorldPosition(vector);
+            vector.project(camera);
+
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+            const voiceInterface = document.getElementById('voice-interface');
+            voiceInterface.style.left = Math.max(20, Math.min(x + 20, window.innerWidth - 420)) + 'px';
+            voiceInterface.style.top = Math.max(20, Math.min(y, window.innerHeight - 420)) + 'px';
+        }
+
+        function showTerminal() {
+            document.getElementById('main-terminal').classList.add('active');
+            document.getElementById('voice-interface').classList.remove('active');
+        }
+
+        function showVoiceInterface() {
+            document.getElementById('voice-interface').classList.add('active');
+            document.getElementById('main-terminal').classList.remove('active');
+        }
+
+        function closeTerminal() {
+            document.getElementById('main-terminal').classList.remove('active');
+        }
+
+        function closeVoiceInterface() {
+            document.getElementById('voice-interface').classList.remove('active');
+        }
+
+        function closeImageWindow() {
+            document.getElementById('image-display').classList.remove('active');
+        }
+
+        function showImageWindow(title, content) {
+            const imageWindow = document.getElementById('image-display');
+            const imageTitle = document.getElementById('image-title');
+            const imageContent = document.getElementById('image-content');
+            
+            imageTitle.textContent = title;
+            imageContent.innerHTML = `<div>${content}</div>`;
+            
+            // Position near active interface
+            const activeInterface = isVoiceMode ? 
+                document.getElementById('voice-interface') : 
+                document.getElementById('main-terminal');
+            const activeRect = activeInterface.getBoundingClientRect();
+            imageWindow.style.left = (activeRect.right + 20) + 'px';
+            imageWindow.style.top = activeRect.top + 'px';
+            
+            imageWindow.classList.add('active');
+        }
+
+        function updateVoiceStatus(message) {
+            document.getElementById('voice-status').textContent = message;
+        }
+
+        function toggleMode() {
+            isVoiceMode = !isVoiceMode;
+            const toggle = document.getElementById('mode-toggle');
+            
+            if (isVoiceMode) {
+                toggle.innerHTML = '<span class="mode-icon">🎤</span><span>VOICE MODE</span>';
+                toggle.classList.add('voice-mode');
+            } else {
+                toggle.innerHTML = '<span class="mode-icon">💬</span><span>CHAT MODE</span>';
+                toggle.classList.remove('voice-mode');
+            }
+            
+            // Close current interface
+            closeTerminal();
+            closeVoiceInterface();
+        }
+
+        function toggleMicrophone() {
+            isListening = !isListening;
+            const micBtn = document.getElementById('mic-btn');
+            const voiceStatus = document.getElementById('voice-status');
+            
+            if (isListening) {
+                micBtn.classList.add('active');
+                voiceStatus.innerHTML = '<span class="listening-indicator">LISTENING...</span>';
+                
+                // Simulate voice input after 3 seconds
+                setTimeout(() => {
+                    if (isListening) {
+                        voiceStatus.textContent = 'PROCESSING VOICE INPUT...';
+                        setTimeout(() => {
+                            if (isListening) {
+                                voiceStatus.textContent = 'GENERATING RESPONSE...';
+                                simulateVoiceResponse();
+                            }
+                        }, 1500);
+                    }
+                }, 3000);
+            } else {
+                micBtn.classList.remove('active');
+                voiceStatus.textContent = 'READY FOR VOICE INPUT';
+            }
+        }
+
+        function toggleSpeaker() {
+            isSpeaking = !isSpeaking;
+            const speakerBtn = document.getElementById('speaker-btn');
+            
+            if (isSpeaking) {
+                speakerBtn.classList.add('active');
+                updateVoiceStatus('SPEAKING...');
+                
+                // Simulate speaking for 4 seconds
+                setTimeout(() => {
+                    speakerBtn.classList.remove('active');
+                    updateVoiceStatus('VOICE OUTPUT COMPLETE');
+                    setTimeout(() => {
+                        updateVoiceStatus('READY FOR VOICE INPUT');
+                        isSpeaking = false;
+                    }, 1000);
+                }, 4000);
+            } else {
+                speakerBtn.classList.remove('active');
+                updateVoiceStatus('READY FOR VOICE INPUT');
+            }
+        }
+
+        function simulateVoiceResponse() {
+            const responses = [
+                `Voice analysis complete for ${currentNucleotideType} nucleotide`,
+                `Molecular structure identified: ${currentNucleotideType === 'blue' ? 'Adenine base detected' : 'Guanine base detected'}`,
+                `Voice pattern recognition successful`,
+                `Audio analysis of nucleotide properties ready`
+            ];
+            
+            const response = responses[Math.floor(Math.random() * responses.length)];
+            updateVoiceStatus('GENERATING VOICE RESPONSE...');
+            
+            setTimeout(() => {
+                toggleSpeaker(); // Start speaking
+                
+                // Show image after voice starts
+                setTimeout(() => {
+                    showImageWindow(
+                        `Voice Analysis: ${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} Nucleotide`,
+                        `Voice Pattern Analysis\n${response}\nAudio Frequency: ${Math.floor(Math.random() * 1000 + 2000)} Hz`
+                    );
+                }, 1000);
+                
+                // Stop listening
+                if (isListening) {
+                    toggleMicrophone();
+                }
+            }, 1000);
+        }
+
+        // Event listeners
+        document.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('click', onMouseClick);
+
+        // Reset button
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            dnaGroup.position.set(0, 0, 0);
+            dnaGroup.rotation.set(0, 0, 0);
+            camera.position.set(0, 0, 20);
+        });
+
+        // Show image button (for testing)
+        document.getElementById('show-image-btn').addEventListener('click', function() {
+            showImageWindow('Test Image Interface', 'This is a test of the image display interface\nYou can see how images would be shown here');
+        });
+
+        // Terminal functionality
+        function addTerminalLine(text, className = 'system-response') {
+            const output = document.getElementById('terminal-output');
+            const line = document.createElement('div');
+            line.className = `terminal-line ${className}`;
+            line.innerHTML = text;
+            
+            // Remove cursor from last line
+            const lastLine = output.lastElementChild;
+            if (lastLine && lastLine.innerHTML.includes('cursor')) {
+                lastLine.innerHTML = lastLine.innerHTML.replace(/<span class="cursor"><\/span>/, '');
+            }
+            
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+            
+            // Add new cursor
+            const newLine = document.createElement('div');
+            newLine.className = 'terminal-line';
+            newLine.innerHTML = '<span class="prompt">dna@analyzer:~$</span> <span class="cursor"></span>';
+            output.appendChild(newLine);
+        }
+
+        function processCommand(command) {
+            const cmd = command.toLowerCase().trim();
+            
+            // Show user input
+            addTerminalLine(`<span class="prompt">dna@analyzer:~$</span> <span class="user-input">${command}</span>`);
+            
+            // Process commands
+            if (cmd.includes('analyze') || cmd.includes('analysis')) {
+                addTerminalLine('Running nucleotide analysis...', 'system-response');
+                setTimeout(() => {
+                    addTerminalLine(`Analysis complete for ${currentNucleotideType} nucleotide`, 'system-response');
+                    addTerminalLine('Generating visualization...', 'system-response');
+                    setTimeout(() => {
+                        showImageWindow(`${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} Nucleotide Analysis`, 
+                                     `${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} Nucleotide Structure\nMolecular Weight: ${currentNucleotideType === 'blue' ? '331.2' : '347.2'} g/mol`);
+                    }, 1000);
+                }, 1500);
+            } else if (cmd.includes('structure') || cmd.includes('struct')) {
+                addTerminalLine('Retrieving structural data...', 'system-response');
+                setTimeout(() => {
+                    addTerminalLine(`${currentNucleotideType.charAt(0).toUpperCase() + currentNucleotideType.slice(1)} nucleotide structural analysis complete`, 'system-response');
+                    addTerminalLine(`Base type: ${currentNucleotideType === 'blue' ? 'Adenine/Thymine' : 'Guanine/Cytosine'}`, 'system-response');
+                }, 1000);
+            } else if (cmd.includes('help')) {
+                addTerminalLine('Available commands:', 'system-response');
+                addTerminalLine('  analyze - Run nucleotide analysis', 'system-response');
+                addTerminalLine('  structure - Show structural data', 'system-response');
+                addTerminalLine('  clear - Clear terminal', 'system-response');
+                addTerminalLine('  help - Show this help', 'system-response');
+            } else if (cmd.includes('clear')) {
+                document.getElementById('terminal-output').innerHTML = '';
+                addTerminalLine('Terminal cleared', 'system-response');
+            } else if (cmd === '') {
+                // Do nothing for empty command
+            } else {
+                addTerminalLine(`Command not recognized: ${command}`, 'error-text');
+                addTerminalLine('Type "help" for available commands', 'system-response');
+            }
+        }
+
+        // Terminal input handling
+        document.getElementById('terminal-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('terminal-input');
+                const command = input.value;
+                processCommand(command);
+                input.value = '';
+            }
+        });
+
+        // Make windows draggable
+        let draggedWindow = null;
+        let windowOffset = { x: 0, y: 0 };
+
+        document.querySelectorAll('.terminal-header, .image-header, .voice-header').forEach(header => {
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('terminal-btn') || e.target.classList.contains('mode-toggle')) return;
+                draggedWindow = header.closest('.terminal-window, .image-window, .voice-interface');
+                const rect = draggedWindow.getBoundingClientRect();
+                windowOffset.x = e.clientX - rect.left;
+                windowOffset.y = e.clientY - rect.top;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (draggedWindow) {
+                draggedWindow.style.left = (e.clientX - windowOffset.x) + 'px';
+                draggedWindow.style.top = (e.clientY - windowOffset.y) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            draggedWindow = null;
+        });
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        initDNAViewer();
+    </script>
+</body>
+</html>
