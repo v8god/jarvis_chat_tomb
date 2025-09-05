@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive DNA Viewer — Full</title>
+
+  <!-- Three.js (kept same as your original) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* ---------- Reset ---------- */
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html,body { height:100%; }
+    body {
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+      color:#00ff00;
+      overflow:hidden;
+    }
+
+    /* ---------- Top Navigation (dropdown floating near toggle) ---------- */
+    header {
+      position: fixed;
+      top: 12px;
+      left: 20px;
+      right: 20px;
+      z-index: 2000;
+      pointer-events: none; /* allow clicks to pass unless targeting controls */
+    }
+    .nav-wrap {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      pointer-events: auto;
+    }
+    .logo { color:#00ffff; font-weight:700; letter-spacing:2px; }
+    .menu-toggle {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.04);
+      padding:8px 12px;
+      border-radius:12px;
+      color:#fff;
+      cursor:pointer;
+      font-size:16px;
+      display:inline-block;
+      backdrop-filter: blur(6px);
+    }
+
+    /* Dropdown (floating near toggle) */
+    .nav-links {
+      list-style:none;
+      display:flex;
+      gap: 18px;
+      align-items:center;
+    }
+    .nav-links a {
+      color: #cfefff;
+      text-decoration: none;
+      font-weight:600;
+      padding:6px 8px;
+      border-radius:6px;
+    }
+    .nav-links a:hover { color:#fff; background: rgba(255,255,255,0.02); }
+
+    /* Mobile: floating dropdown box near toggle */
+    @media (max-width: 900px) {
+      .nav-links {
+        position: absolute;
+        top: 48px;
+        right: 0;
+        transform-origin: top right;
+        flex-direction: column;
+        gap: 12px;
+        background: linear-gradient(180deg, rgba(20,20,30,0.95), rgba(10,10,20,0.9));
+        padding: 12px;
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: max-height 320ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease;
+        width: 220px;
+        right: 4px;
+      }
+      .nav-links.active {
+        max-height: 420px;
+        opacity: 1;
+      }
+      .menu-toggle { display:inline-block; }
+    }
+
+    /* Backdrop for menu */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 1500;
+      display:none;
+    }
+    .backdrop.active { display:block; }
+
+    /* ---------- Main Container & DNA viewer ---------- */
+    #container { position:relative; width:100vw; height:100vh; overflow:hidden; }
+
+    #dna-viewer { position:absolute; inset:0; cursor:grab; z-index: 1; }
+    #dna-viewer:active { cursor:grabbing; }
+
+    /* ---------- Windows: Terminal, Voice, Image ---------- */
+    .terminal-window, .voice-interface, .image-window {
+      position: absolute;
+      width: 450px;
+      min-height: 300px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      z-index: 2200;
+      transition: transform 360ms cubic-bezier(.2,.9,.2,1), opacity 320ms ease;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(10px) scale(.99);
+      display:flex;
+      flex-direction: column;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    /* active windows */
+    .terminal-window.active, .voice-interface.active, .image-window.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    /* slide helpers (applied dynamically via JS) */
+    .slide-in-right  { transform: translateX(12px) translateY(0) scale(1); opacity:1; }
+    .slide-out-right { transform: translateX(48px) scale(.98); opacity:0; pointer-events:none; }
+    .slide-in-left   { transform: translateX(-12px) translateY(0) scale(1); opacity:1; }
+    .slide-out-left  { transform: translateX(-48px) scale(.98); opacity:0; pointer-events:none; }
+
+    /* Terminal window appearance */
+    .terminal-window {
+      background: #1e1e1e;
+      border: 2px solid #4a90e2;
+      color:#00ff00;
+      font-family: 'Consolas', monospace;
+      width: 450px;
+    }
+    .terminal-header {
+      background: linear-gradient(135deg, #4a90e2, #357abd);
+      padding: 8px 12px;
+      border-radius: 6px 6px 0 0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      cursor: move;
+      border-bottom: 1px solid #357abd;
+    }
+    .terminal-controls { display:flex; gap:6px; align-items:center; }
+    .terminal-btn { width:12px; height:12px; border-radius:50%; border:none; cursor:pointer; }
+    .close-btn { background:#ff5f56; }
+    .minimize-btn { background:#ffbd2e; }
+    .maximize-btn { background:#27ca3f; }
+    .terminal-title { color:white; font-size:11px; font-weight:normal; }
+    .mode-toggle {
+      background: linear-gradient(135deg,#ff6b9d,#4ecdc4);
+      border:none;
+      border-radius:20px;
+      padding:6px 12px;
+      color:#fff;
+      font-size:11px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .mode-toggle.voice-mode { background: linear-gradient(135deg,#667eea,#764ba2); }
+
+    .terminal-content {
+      padding:12px;
+      background: #141414;
+      color:#00ff00;
+      max-height: 350px;
+      overflow-y:auto;
+    }
+    .terminal-line { margin-bottom:6px; line-height:1.2; font-family:inherit; }
+    .prompt { color:#4a90e2; }
+    .user-input { color:#fff; font-weight:600; }
+    .system-response { color:#00ff00; }
+    .error-text { color:#ff6b6b; }
+
+    .terminal-input-area {
+      border-top:1px solid #333;
+      padding:8px 12px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background: #1c1c1c;
+    }
+    .terminal-prompt { color:#4a90e2; font-weight:bold; }
+    .terminal-input {
+      flex:1;
+      background:transparent;
+      border:none;
+      color:#fff;
+      font-size:13px;
+      outline:none;
+      caret-color:#00ff00;
+    }
+    .cursor { display:inline-block; width:8px; height:14px; background:#00ff00; animation:blink 1s infinite; margin-left:4px; }
+    @keyframes blink { 0%,50%{opacity:1}51%,100%{opacity:0} }
+
+    /* Voice interface appearance (styled like Image 2 — cyan sci-fi theme) */
+    .voice-interface {
+      width: 420px;
+      height: 420px;
+      background: linear-gradient(135deg, #0a0a2e, #1a1a3e);
+      border: 2px solid rgba(0,255,255,0.12);
+    }
+    .voice-header {
+      background: linear-gradient(135deg,#00ffff,#0080ff);
+      padding:8px 12px;
+      border-radius:6px 6px 0 0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      cursor: move;
+      border-bottom:1px solid rgba(0,255,255,0.12);
+    }
+    .voice-content {
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+      padding: 18px;
+    }
+    .sci-fi-title { color:#00ffff; font-size:18px; font-weight:700; text-transform:uppercase; letter-spacing:3px; margin-bottom:12px; text-shadow:0 0 10px rgba(0,255,255,0.25); }
+
+    .voice-visualizer { position:relative; width:220px; height:220px; display:flex; align-items:center; justify-content:center; }
+    .circular-visualizer {
+      width:200px; height:200px; border-radius:50%;
+      border:2px solid rgba(0,255,255,0.12);
+      position:relative; animation: rotate 6s linear infinite;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .inner-circle { position:absolute; width:140px; height:140px; border-radius:50%; border:2px solid rgba(0,255,255,0.15); animation: rotate-reverse 4s linear infinite; }
+    .core-circle { position:absolute; width:70px; height:70px; border-radius:50%; background: radial-gradient(circle,#00ffff,#003b5c); animation: pulse 2s ease-in-out infinite; box-shadow:0 0 30px rgba(0,255,255,0.12) inset; }
+
+    .orbit-dot { position:absolute; width:8px; height:8px; border-radius:50%; background:#00ffff; box-shadow:0 0 10px rgba(0,255,255,0.6); }
+    .orbit-dot:nth-child(1){ top:-4px; left:50%; transform:translateX(-50%); animation: glow 1.5s ease-in-out infinite; }
+    .orbit-dot:nth-child(2){ bottom:-4px; left:50%; transform:translateX(-50%); animation: glow 1.5s ease-in-out infinite 0.4s; }
+    .orbit-dot:nth-child(3){ left:-4px; top:50%; transform:translateY(-50%); animation: glow 1.5s ease-in-out infinite 0.8s; }
+    .orbit-dot:nth-child(4){ right:-4px; top:50%; transform:translateY(-50%); animation: glow 1.5s ease-in-out infinite 1.2s; }
+
+    @keyframes rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    @keyframes rotate-reverse { from{transform:rotate(360deg)} to{transform:rotate(0deg)} }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.12);opacity:0.8} }
+    @keyframes glow { 0%,100%{box-shadow:0 0 10px rgba(0,255,255,0.8)} 50%{box-shadow:0 0 20px rgba(0,255,255,1)} }
+
+    /* Central voice control (single circle) */
+    .voice-core-control {
+      position:absolute;
+      width:86px; height:86px; border-radius:50%;
+      top:50%; left:50%; transform:translate(-50%,-50%);
+      display:flex; align-items:center; justify-content:center; cursor:pointer;
+      background: radial-gradient(circle at 30% 30%, rgba(0,255,255,0.98), rgba(0,200,255,0.6));
+      border: 2px solid rgba(255,255,255,0.06);
+      box-shadow: 0 0 30px rgba(0,255,255,0.25), inset 0 -8px 18px rgba(0,0,0,0.25);
+      transition: transform .18s ease, box-shadow .18s ease;
+      z-index: 12;
+    }
+    .voice-core-control.active { transform:translate(-50%,-50%) scale(1.06); box-shadow:0 0 50px rgba(0,255,255,0.45); }
+    .voice-core-control .icon { font-size:30px; color:#04111a; text-shadow:0 1px 0 rgba(255,255,255,0.2); }
+
+    /* image window */
+    .image-window { width:400px; height:300px; background:#2d2d2d; border:2px solid #4a90e2; color:#fff; }
+    .image-header { background: linear-gradient(135deg,#4a90e2,#357abd); padding:8px 12px; border-radius:6px 6px 0 0; cursor: move; display:flex; align-items:center; gap:8px;}
+    .image-content { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; font-family:inherit; }
+
+    /* Control panel (top-left) */
+    .control-panel { position: fixed; top:20px; left:20px; z-index:2100; display:flex; gap:10px; pointer-events:auto; }
+    .control-btn {
+      padding:8px 14px; background:linear-gradient(135deg,#4a90e2,#357abd); border-radius:20px; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer;
+      font-size:13px;
+    }
+
+    /* Draggable header cursor style */
+    .terminal-header, .image-header, .voice-header { -webkit-user-drag: none; }
+
+    /* small screens adjustments */
+    @media (max-width: 600px) {
+      .terminal-window, .voice-interface { width: calc(100vw - 40px); left: 20px !important; right:20px; }
+      .image-window { width: calc(100vw - 40px); left:20px !important; right:20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top nav + dropdown near toggle (floating) -->
+  <header>
+    <div class="nav-wrap">
+      <div class="logo">RAMAN</div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <ul class="nav-links" id="navMenu">
+          <li><a href="#home">Home</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#gallery">Gallery</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+        <div class="menu-toggle" id="menuToggle" title="Menu">☰</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Backdrop for menu -->
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- Control panel -->
+  <div class="control-panel">
+    <button class="control-btn" id="reset-btn">Reset View</button>
+    <button class="control-btn" id="show-image-btn">Show Image Interface</button>
+  </div>
+
+  <!-- Main container & viewer -->
+  <div id="container">
+    <div id="dna-viewer"></div>
+
+    <!-- Terminal Window -->
+    <div class="terminal-window" id="main-terminal" style="left:60px; top:90px;">
+      <div class="terminal-header">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div class="terminal-controls">
+            <button class="terminal-btn close-btn" onclick="closeTerminal()"></button>
+            <button class="terminal-btn minimize-btn"></button>
+            <button class="terminal-btn maximize-btn"></button>
+          </div>
+          <span class="terminal-title">DNA Analysis Terminal</span>
+        </div>
+        <button class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
+          <span class="mode-icon">💬</span><span id="mode-text">CHAT MODE</span>
+        </button>
+      </div>
+
+      <div class="terminal-content" id="terminal-output">
+        <div class="terminal-line system-response">DNA Analysis System v2.1.0</div>
+        <div class="terminal-line system-response">Initializing molecular viewer...</div>
+        <div class="terminal-line system-response">Ready for nucleotide analysis.</div>
+        <div class="terminal-line"><span class="prompt">dna@analyzer:~$</span> <span class="cursor"></span></div>
+      </div>
+
+      <div class="terminal-input-area">
+        <span class="terminal-prompt">dna@analyzer:~$</span>
+        <input class="terminal-input" id="terminal-input" autocomplete="off" placeholder="Type command and press Enter" />
+      </div>
+    </div>
+
+    <!-- Voice Interface -->
+    <div class="voice-interface" id="voice-interface" style="left:520px; top:90px;">
+      <div class="voice-header">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div class="terminal-controls">
+            <button class="terminal-btn close-btn" onclick="closeVoiceInterface()"></button>
+            <button class="terminal-btn minimize-btn"></button>
+            <button class="terminal-btn maximize-btn"></button>
+          </div>
+          <span class="terminal-title">Voice Analysis Interface</span>
+        </div>
+        <button class="mode-toggle voice-mode" onclick="toggleMode()">
+          <span class="mode-icon">🎤</span><span>VOICE MODE</span>
+        </button>
+      </div>
+
+      <div class="voice-content">
+        <div class="sci-fi-title">SCIFI AI HACKCHAT</div>
+        <div class="voice-visualizer">
+          <div class="circular-visualizer" id="circular-visualizer">
+            <div class="orbit-dot"></div>
+            <div class="orbit-dot"></div>
+            <div class="orbit-dot"></div>
+            <div class="orbit-dot"></div>
+            <div class="inner-circle"></div>
+            <div class="core-circle"></div>
+
+            <!-- central control (single circle toggles mic + speaks) -->
+            <div class="voice-core-control" id="voice-core-control" title="Click to toggle Listen / Speak">
+              <div class="icon" id="voice-core-icon">🎧</div>
+            </div>
+          </div>
+        </div>
+        <div class="voice-status" id="voice-status" style="margin-top:14px; color:#00ffff; font-size:12px; text-transform:uppercase; letter-spacing:1px;">READY FOR VOICE INPUT</div>
+      </div>
+
+      <!-- old separate voice controls hidden (kept for backwards compatibility) -->
+      <div class="voice-controls" style="display:none;">
+        <button class="voice-btn" id="mic-btn" title="Toggle Microphone">🎤</button>
+        <button class="voice-btn" id="speaker-btn" title="Toggle Speaker">🔊</button>
+      </div>
+    </div>
+
+    <!-- Image Display Window -->
+    <div class="image-window" id="image-display" style="left:960px; top:120px;">
+      <div class="image-header">
+        <div class="terminal-controls">
+          <button class="terminal-btn close-btn" onclick="closeImageWindow()"></button>
+          <button class="terminal-btn minimize-btn"></button>
+          <button class="terminal-btn maximize-btn"></button>
+        </div>
+        <span class="terminal-title" id="image-title">Analysis Result</span>
+      </div>
+      <div class="image-content" id="image-content">
+        <div>Nucleotide Structure Visualization</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /***********************
+     *  GLOBAL / STATE
+     ***********************/
+    let scene, camera, renderer, dnaGroup;
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let blueBalls = [], redBalls = [];
+    let raycaster, mouse;
+    let currentNucleotideType = '';
+    let isVoiceMode = false;
+    let isListening = false;
+    let isSpeaking = false;
+    let draggedWindow = null;
+    let windowOffset = { x:0, y:0 };
+
+    // voice: media
+    let mediaStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    /***********************
+     *  Helper: slide animations
+     ***********************/
+    function animateOut(el, dir='right') {
+      return new Promise(resolve => {
+        if (!el || !el.classList.contains('active')) { resolve(); return; }
+        // add slide-out class
+        el.classList.add(dir === 'right' ? 'slide-out-right' : 'slide-out-left');
+        const onEnd = (ev) => {
+          el.classList.remove('active', 'slide-out-right', 'slide-out-left');
+          el.removeEventListener('transitionend', onEnd);
+          resolve();
+        };
+        // ensure we listen for transition end
+        el.addEventListener('transitionend', onEnd);
+        // fallback
+        setTimeout(() => {
+          if (el.classList.contains('active')) {
+            el.classList.remove('active', 'slide-out-right', 'slide-out-left');
+          }
+          resolve();
+        }, 480);
+      });
+    }
+
+    function animateIn(el, dir='right') {
+      if (!el) return;
+      // ensure it's visible
+      el.classList.remove('slide-out-left','slide-out-right','slide-in-left','slide-in-right');
+      el.classList.add('active');
+      // apply in class then remove after delay
+      el.classList.add(dir === 'right' ? 'slide-in-right' : 'slide-in-left');
+      setTimeout(() => { el.classList.remove('slide-in-right','slide-in-left'); }, 420);
+    }
+
+    /***********************
+     *  DNA Viewer Setup (Three.js)
+     ***********************/
+    function initDNAViewer() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0);
+      document.getElementById('dna-viewer').appendChild(renderer.domElement);
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      dnaGroup = new THREE.Group();
+      createInteractiveDNA();
+      scene.add(dnaGroup);
+
+      camera.position.z = 20;
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.9);
+      scene.add(ambientLight);
+
+      const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+      pointLight.position.set(15, 15, 15);
+      scene.add(pointLight);
+
+      const pointLight2 = new THREE.PointLight(0x4a90e2, 0.6, 100);
+      pointLight2.position.set(-15, -15, 15);
+      scene.add(pointLight2);
+
+      animate();
+    }
+
+    function createInteractiveDNA() {
+      const helixHeight = 25;
+      const helixRadius = 4;
+      const segments = 80;
+
+      // backbone strands
+      for (let strand=0; strand<2; strand++) {
+        const curve = new THREE.CatmullRomCurve3(generateHelixPoints(helixHeight, helixRadius, segments, strand));
+        const tube = new THREE.TubeGeometry(curve, segments, 0.08, 8, false);
+        const mat = new THREE.MeshPhongMaterial({ color:0xcccccc, shininess:50, transparent:true, opacity:0.7 });
+        const mesh = new THREE.Mesh(tube, mat);
+        dnaGroup.add(mesh);
+      }
+
+      // nucleotide base pairs
+      for (let i=0; i<segments; i+=2) {
+        const t = i/segments;
+        const y = (t - 0.5) * helixHeight;
+        const angle = t * Math.PI * 10;
+
+        const x1 = Math.cos(angle) * helixRadius; const z1 = Math.sin(angle) * helixRadius;
+        const x2 = Math.cos(angle + Math.PI) * helixRadius; const z2 = Math.sin(angle + Math.PI) * helixRadius;
+
+        // connection line (cylinder)
+        const lineGeom = new THREE.CylinderGeometry(0.03,0.03,helixRadius*2,8);
+        const lineMat = new THREE.MeshPhongMaterial({ color:0x666666, transparent:true, opacity:0.6 });
+        const basePair = new THREE.Mesh(lineGeom, lineMat);
+        basePair.position.set((x1+x2)/2, y, (z1+z2)/2);
+        basePair.rotation.z = angle;
+        dnaGroup.add(basePair);
+
+        // blue ball
+        const blueBallGeom = new THREE.SphereGeometry(0.4, 16, 16);
+        const blueBallMat = new THREE.MeshPhongMaterial({ color:0x0066ff, shininess:100, transparent:true, opacity:0.95 });
+        const blueBall = new THREE.Mesh(blueBallGeom, blueBallMat);
+        blueBall.position.set(x1,y,z1);
+        blueBall.userData = { type:'blue', id:`blue_${i}`, position:i };
+        blueBalls.push(blueBall);
+        dnaGroup.add(blueBall);
+
+        // red ball
+        const redBallGeom = new THREE.SphereGeometry(0.4, 16, 16);
+        const redBallMat = new THREE.MeshPhongMaterial({ color:0xff3333, shininess:100, transparent:true, opacity:0.95 });
+        const redBall = new THREE.Mesh(redBallGeom, redBallMat);
+        redBall.position.set(x2,y,z2);
+        redBall.userData = { type:'red', id:`red_${i}`, position:i };
+        redBalls.push(redBall);
+        dnaGroup.add(redBall);
+      }
+    }
+
+    function generateHelixPoints(height, radius, segments, strand) {
+      const points = [];
+      for (let i=0;i<=segments;i++) {
+        const t = i/segments;
+        const angle = t * Math.PI * 10 + (strand * Math.PI);
+        const x = Math.cos(angle) * radius;
+        const y = (t - 0.5) * height;
+        const z = Math.sin(angle) * radius;
+        points.push(new THREE.Vector3(x,y,z));
+      }
+      return points;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!isDragging && dnaGroup) dnaGroup.rotation.y += 0.003;
+      renderer.render(scene, camera);
+    }
+
+    /***********************
+     *  Mouse Interaction
+     ***********************/
+    function onMouseDown(event) {
+      // only start drag if clicking on the canvas (renderer.domElement)
+      if (!renderer) return;
+      // if the user clicked inside the dna-viewer canvas
+      if (event.target === renderer.domElement) {
+        isDragging = true;
+        previousMousePosition = { x:event.clientX, y:event.clientY };
+      }
+    }
+
+    function onMouseUp(event) {
+      if (isDragging) isDragging = false;
+    }
+
+    function onMouseMove(event) {
+      if (isDragging && dnaGroup) {
+        const deltaX = event.clientX - previousMousePosition.x;
+        const deltaY = event.clientY - previousMousePosition.y;
+        dnaGroup.rotation.y += deltaX * 0.01;
+        dnaGroup.rotation.x += deltaY * 0.01;
+        dnaGroup.position.x += deltaX * 0.01;
+        previousMousePosition = { x:event.clientX, y:event.clientY };
+      }
+    }
+
+    function onMouseClick(event) {
+      if (isDragging) return; // ignore clicks while dragging
+      if (!renderer) return;
+      // ensure clicking canvas only
+      if (event.target !== renderer.domElement) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const allBalls = [...blueBalls, ...redBalls];
+      const intersects = raycaster.intersectObjects(allBalls);
+
+      if (intersects.length > 0) {
+        const clickedBall = intersects[0].object;
+        currentNucleotideType = clickedBall.userData.type;
+        const position = clickedBall.userData.position;
+
+        if (isVoiceMode) {
+          positionVoiceInterfaceNearBall(clickedBall);
+          showVoiceInterface();
+          updateVoiceStatus(`VOICE MODE — ${currentNucleotideType.toUpperCase()}_${position}`);
+        } else {
+          positionTerminalNearBall(clickedBall);
+          showTerminal();
+          addTerminalLine(`Nucleotide ${currentNucleotideType.toUpperCase()}_${position} selected`, 'system-response');
+          addTerminalLine(`Position: ${position}, Type: ${currentNucleotideType}`, 'system-response');
+          addTerminalLine(`Ready for analysis commands...`, 'system-response');
+        }
+      }
+    }
+
+    function positionTerminalNearBall(ball) {
+      const vector = new THREE.Vector3();
+      ball.getWorldPosition(vector);
+      vector.project(camera);
+
+      const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+      const terminal = document.getElementById('main-terminal');
+      // clamp to viewport
+      const left = Math.max(12, Math.min(x + 20, window.innerWidth - terminal.offsetWidth - 12));
+      const top = Math.max(12, Math.min(y, window.innerHeight - terminal.offsetHeight - 12));
+      terminal.style.left = left + 'px';
+      terminal.style.top = top + 'px';
+    }
+
+    function positionVoiceInterfaceNearBall(ball) {
+      const vector = new THREE.Vector3();
+      ball.getWorldPosition(vector);
+      vector.project(camera);
+
+      const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+      const voiceInterface = document.getElementById('voice-interface');
+      const left = Math.max(12, Math.min(x + 20, window.innerWidth - voiceInterface.offsetWidth - 12));
+      const top = Math.max(12, Math.min(y, window.innerHeight - voiceInterface.offsetHeight - 12));
+      voiceInterface.style.left = left + 'px';
+      voiceInterface.style.top = top + 'px';
+    }
+
+    /***********************
+     *  Show / Hide Windows (use animations)
+     ***********************/
+    async function showTerminal() {
+      const terminal = document.getElementById('main-terminal');
+      const voice = document.getElementById('voice-interface');
+      // hide voice first
+      await animateOut(voice, 'right');
+      // show terminal
+      animateIn(terminal, 'left');
+    }
+
+    async function showVoiceInterface() {
+      const terminal = document.getElementById('main-terminal');
+      const voice = document.getElementById('voice-interface');
+      await animateOut(terminal, 'left');
+      animateIn(voice, 'right');
+    }
+
+    function closeTerminal() { animateOut(document.getElementById('main-terminal'),'left'); }
+    function closeVoiceInterface(){ animateOut(document.getElementById('voice-interface'),'right'); }
+    function closeImageWindow(){ animateOut(document.getElementById('image-display'),'right'); }
+
+    function showImageWindow(title, content) {
+      const imageWindow = document.getElementById('image-display');
+      const imageTitle = document.getElementById('image-title');
+      const imageContent = document.getElementById('image-content');
+
+      imageTitle.textContent = title;
+      imageContent.innerHTML = `<div style="white-space:pre-line; text-align:left;">${content}</div>`;
+
+      // position near active interface if possible
+      const activeInterface = isVoiceMode ? document.getElementById('voice-interface') : document.getElementById('main-terminal');
+      if (activeInterface && activeInterface.classList.contains('active')) {
+        const rect = activeInterface.getBoundingClientRect();
+        // place to right if enough space else left
+        const preferRight = (rect.right + 420 + 20) < window.innerWidth;
+        if (preferRight) {
+          imageWindow.style.left = (rect.right + 12) + 'px';
+          imageWindow.style.top = rect.top + 'px';
+        } else {
+          imageWindow.style.left = Math.max(12, rect.left - 420 - 12) + 'px';
+          imageWindow.style.top = rect.top + 'px';
+        }
+      } else {
+        // center-ish default
+        imageWindow.style.left = (window.innerWidth - imageWindow.offsetWidth)/2 + 'px';
+        imageWindow.style.top = (window.innerHeight - imageWindow.offsetHeight)/2 + 'px';
+      }
+
+      animateIn(imageWindow, 'right');
+    }
+
+    function updateVoiceStatus(message) {
+      const el = document.getElementById('voice-status');
+      if (el) el.textContent = message;
+    }
+
+    /***********************
+     *  Mode Toggle (Chat <-> Voice) with sliding transitions
+     ***********************/
+    let toggleBusy = false;
+    async function toggleMode() {
+      if (toggleBusy) return;
+      toggleBusy = true;
+      const terminal = document.getElementById('main-terminal');
+      const voice = document.getElementById('voice-interface');
+      const toggleText = document.getElementById('mode-text');
+      isVoiceMode = !isVoiceMode;
+
+      if (isVoiceMode) {
+        if (terminal.classList.contains('active')) await animateOut(terminal,'left');
+        animateIn(voice,'right');
+        toggleText.textContent = 'VOICE MODE';
+      } else {
+        if (voice.classList.contains('active')) await animateOut(voice,'right');
+        animateIn(terminal,'left');
+        toggleText.textContent = 'CHAT MODE';
+      }
+
+      setTimeout(()=>{ toggleBusy = false; }, 480);
+    }
+
+    /***********************
+     *  Terminal: add lines & process commands
+     ***********************/
+    function addTerminalLine(text, className='system-response') {
+      const output = document.getElementById('terminal-output');
+      const line = document.createElement('div');
+      line.className = `terminal-line ${className}`;
+      line.innerHTML = text;
+      // remove trailing cursor from last line if present
+      const lastLine = output.lastElementChild;
+      if (lastLine && lastLine.innerHTML.includes('cursor')) {
+        lastLine.innerHTML = lastLine.innerHTML.replace(/<span class="cursor"><\/span>/, '');
+      }
+      output.appendChild(line);
+      // new prompt line
+      const newLine = document.createElement('div');
+      newLine.className = 'terminal-line';
+      newLine.innerHTML = '<span class="prompt">dna@analyzer:~$</span> <span class="cursor"></span>';
+      output.appendChild(newLine);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function processCommand(command) {
+      const cmd = command.toLowerCase().trim();
+      addTerminalLine(`<span class="prompt">dna@analyzer:~$</span> <span class="user-input">${escapeHtml(command)}</span>`, 'user-input');
+
+      if (cmd.includes('analyze') || cmd.includes('analysis')) {
+        addTerminalLine('Running nucleotide analysis...', 'system-response');
+        setTimeout(() => {
+          addTerminalLine(`Analysis complete for ${currentNucleotideType || 'unknown'} nucleotide`, 'system-response');
+          addTerminalLine('Generating visualization...', 'system-response');
+          setTimeout(() => {
+            showImageWindow(`${(currentNucleotideType||'N/A').toUpperCase()} Nucleotide Analysis`,
+              `${(currentNucleotideType||'N/A').toUpperCase()} Nucleotide Structure\nMolecular Weight: ${currentNucleotideType === 'blue' ? '331.2' : '347.2'} g/mol\n\nNotes: Simulated analysis.`);
+          }, 900);
+        }, 1200);
+      } else if (cmd.includes('structure') || cmd.includes('struct')) {
+        addTerminalLine('Retrieving structural data...', 'system-response');
+        setTimeout(() => {
+          addTerminalLine(`${(currentNucleotideType||'N/A').toUpperCase()} structural analysis complete`, 'system-response');
+          addTerminalLine(`Base type: ${currentNucleotideType === 'blue' ? 'Adenine/Thymine' : 'Guanine/Cytosine'}`, 'system-response');
+        }, 700);
+      } else if (cmd.includes('help')) {
+        addTerminalLine('Available commands:', 'system-response');
+        addTerminalLine('  analyze - Run nucleotide analysis', 'system-response');
+        addTerminalLine('  structure - Show structural data', 'system-response');
+        addTerminalLine('  clear - Clear terminal', 'system-response');
+        addTerminalLine('  help - Show this help', 'system-response');
+      } else if (cmd.includes('clear')) {
+        document.getElementById('terminal-output').innerHTML = '';
+        addTerminalLine('Terminal cleared', 'system-response');
+      } else if (cmd === '') {
+        // nothing
+      } else {
+        addTerminalLine(`Command not recognized: ${escapeHtml(command)}`, 'error-text');
+        addTerminalLine('Type "help" for available commands', 'system-response');
+      }
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe.replace(/[&<"'>]/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#039;'}[m]; });
+    }
+
+    // terminal input handling
+    document.addEventListener('keydown', (e) => {
+      // allow Enter on terminal input to send
+      const input = document.getElementById('terminal-input');
+      if (!input) return;
+      if (document.activeElement === input && e.key === 'Enter') {
+        const cmd = input.value;
+        processCommand(cmd);
+        input.value = '';
+      }
+    });
+
+    /***********************
+     *  Voice Core Control (single circle)
+     ***********************/
+    const coreControlEl = () => document.getElementById('voice-core-control');
+    const coreIconEl = () => document.getElementById('voice-core-icon');
+
+    function initVoiceCore() {
+      const core = coreControlEl();
+      if (!core) return;
+      core.addEventListener('click', async () => {
+        if (!isListening) {
+          await startListening();
+        } else {
+          // if listening, stop
+          stopListening();
+        }
+      });
+
+      core.addEventListener('dblclick', () => {
+        speakText('Voice control test. Double click detected.');
+      });
+    }
+
+    async function startListening() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        if (!mediaStream) throw new Error('No media');
+        isListening = true;
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(mediaStream);
+        mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+        mediaRecorder.start();
+        coreControlEl().classList.add('active');
+        coreIconEl().textContent = '🔴';
+        updateVoiceStatus('LISTENING (microphone active)');
+
+        // automatically stop recording after 4s and simulate analysis
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+          }
+          // short processing then speak & show image
+          setTimeout(() => {
+            updateVoiceStatus('PROCESSING AUDIO...');
+            setTimeout(() => {
+              updateVoiceStatus('GENERATING RESPONSE...');
+              // create blob if needed
+              const blob = new Blob(recordedChunks, { type:'audio/webm' });
+              // you could upload blob here for real analysis
+              speakText('Audio analysis complete. Nucleotide properties identified.');
+              showImageWindow(`Voice Analysis: ${(currentNucleotideType || 'N/A').toUpperCase()} Nucleotide`,
+                `Voice Pattern Analysis\nSimulated result for ${currentNucleotideType || 'unknown'}.\nAudio Length: ${Math.round((blob.size||0)/8000)} sec (approx)`);
+              stopListening();
+            }, 900);
+          }, 500);
+        }, 4000);
+
+      } catch(err) {
+        console.warn('Microphone error', err);
+        updateVoiceStatus('MICROPHONE ACCESS DENIED');
+        coreIconEl().textContent = '🎧';
+        coreControlEl().classList.remove('active');
+        isListening = false;
+      }
+    }
+
+    function stopListening() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+      isListening = false;
+      coreControlEl().classList.remove('active');
+      coreIconEl().textContent = '🎧';
+      updateVoiceStatus('READY FOR VOICE INPUT');
+    }
+
+    function speakText(text) {
+      try {
+        if ('speechSynthesis' in window) {
+          const u = new SpeechSynthesisUtterance(text);
+          u.rate = 1; u.pitch=1;
+          speechSynthesis.cancel();
+          speechSynthesis.speak(u);
+          coreIconEl().textContent = '🔊';
+          coreControlEl().classList.add('active');
+          isSpeaking = true;
+          updateVoiceStatus('SPEAKING...');
+          u.onend = () => {
+            isSpeaking = false;
+            coreControlEl().classList.remove('active');
+            coreIconEl().textContent = '🎧';
+            updateVoiceStatus('READY FOR VOICE INPUT');
+          };
+        } else {
+          updateVoiceStatus('SpeechSynthesis unsupported');
+        }
+      } catch(e) {
+        console.error('TTS error', e);
+      }
+    }
+
+    /***********************
+     *  Menu Dropdown & Backdrop
+     ***********************/
+    function setupMenu() {
+      const menuToggle = document.getElementById('menuToggle');
+      const navMenu = document.getElementById('navMenu');
+      const backdrop = document.getElementById('backdrop');
+
+      menuToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        backdrop.classList.toggle('active');
+      });
+
+      backdrop.addEventListener('click', () => {
+        navMenu.classList.remove('active');
+        backdrop.classList.remove('active');
+      });
+
+      document.querySelectorAll('#navMenu a').forEach(a => {
+        a.addEventListener('click', () => {
+          navMenu.classList.remove('active');
+          backdrop.classList.remove('active');
+        });
+      });
+    }
+
+    /***********************
+     *  Make windows draggable
+     ***********************/
+    function setupDragging() {
+      document.querySelectorAll('.terminal-header, .image-header, .voice-header').forEach(header => {
+        header.addEventListener('mousedown', (e) => {
+          // don't start dragging if clicking the small control buttons or mode toggle
+          if (e.target.classList.contains('terminal-btn') || e.target.classList.contains('mode-toggle')) return;
+          draggedWindow = header.closest('.terminal-window, .image-window, .voice-interface');
+          if (!draggedWindow) return;
+          const rect = draggedWindow.getBoundingClientRect();
+          windowOffset.x = e.clientX - rect.left;
+          windowOffset.y = e.clientY - rect.top;
+          e.preventDefault();
+          e.stopPropagation();
+        });
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (draggedWindow) {
+          draggedWindow.style.left = (e.clientX - windowOffset.x) + 'px';
+          draggedWindow.style.top = (e.clientY - windowOffset.y) + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => { draggedWindow = null; });
+    }
+
+    /***********************
+     *  Wire up DOM events & init
+     ***********************/
+    window.addEventListener('resize', () => {
+      if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    // Mouse events (for 3D canvas)
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('click', onMouseClick);
+
+    // control-panel buttons
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      if (dnaGroup) {
+        dnaGroup.position.set(0,0,0);
+        dnaGroup.rotation.set(0,0,0);
+      }
+      if (camera) camera.position.set(0,0,20);
+    });
+
+    document.getElementById('show-image-btn').addEventListener('click', () => {
+      showImageWindow('Test Image Interface','This is a test of the image display interface\nYou can see how images would be shown here');
+    });
+
+    // terminal input (Enter handled globally above)
+    // init on DOMContentLoaded
+    window.addEventListener('DOMContentLoaded', () => {
+      initDNAViewer();
+      initVoiceCore();
+      setupMenu();
+      setupDragging();
+    });
+
+    // Close windows on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeTerminal(); closeVoiceInterface(); closeImageWindow();
+        document.getElementById('navMenu').classList.remove('active');
+        document.getElementById('backdrop').classList.remove('active');
+      }
+    });
+
+  </script>
+</body>
+</html>
