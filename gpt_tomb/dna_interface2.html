@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dropdown Menu with Backdrop</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #fff;
+    }
+
+    /* Navbar base */
+    header {
+      background: #333;
+      padding: 1rem 2rem;
+      position: relative;
+      z-index: 1000;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .nav-links {
+      list-style: none;
+      display: flex;
+      gap: 2rem;
+      transition: max-height 0.3s ease, opacity 0.3s ease;
+    }
+
+    .nav-links a {
+      color: #fff;
+      text-decoration: none;
+      font-weight: bold;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover {
+      color: #ff9800;
+    }
+
+    /* Menu toggle hidden by default (desktop) */
+    .menu-toggle {
+      display: none;
+    }
+
+    /* Mobile styles */
+    @media (max-width: 768px) {
+      .nav-links {
+        position: absolute;
+        top: 60px;
+        right: 20px;
+        flex-direction: column;
+        background: #222;
+        border-radius: 5px;
+        padding: 1rem;
+        gap: 1rem;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        z-index: 1001;
+      }
+
+      .nav-links.active {
+        max-height: 500px; /* large enough to fit links */
+        opacity: 1;
+      }
+
+      .menu-toggle {
+        display: block;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #fff;
+      }
+    }
+
+    /* Backdrop overlay */
+    .backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      z-index: 900;
+    }
+    .backdrop.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <nav>
+      <div class="logo">LOGO</div>
+      <ul class="nav-links" id="navMenu">
+        <li><a href="#home">Home</a></li>
+        <li><a href="#services">Services</a></li>
+        <li><a href="#gallery">Gallery</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+      <div class="menu-toggle">☰</div>
+    </nav>
+  </header>
+
+  <!-- Backdrop -->
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- Dummy Content -->
+  <section style="padding: 2rem;">
+    <h1>Welcome</h1>
+    <p>This is a sample page with a floating dropdown menu.</p>
+  </section>
+
+  <script>
+    // Elements
+    const menuToggle = document.querySelector('.menu-toggle');
+    const navMenu = document.getElementById('navMenu');
+    const backdrop = document.getElementById('backdrop');
+
+    // Toggle dropdown
+    menuToggle.addEventListener('click', () => {
+      navMenu.classList.toggle('active');
+      backdrop.classList.toggle('active');
+    });
+
+    // Close on backdrop click
+    backdrop.addEventListener('click', () => {
+      navMenu.classList.remove('active');
+      backdrop.classList.remove('active');
+    });
+
+    // Close when a nav link is clicked
+    document.querySelectorAll('#navMenu a').forEach(link => {
+      link.addEventListener('click', () => {
+        navMenu.classList.remove('active');
+        backdrop.classList.remove('active');
+      });
+    });
+  </script>
+</body>
+</html>
