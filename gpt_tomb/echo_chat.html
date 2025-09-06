@@ -152,7 +152,7 @@
       };
     
       recognition.onresult = (event) => {
-        let transcript = event.results[event.resultIndex][0].transcript;
+        let transcript = event.results[event.resultIndex][1].transcript;
         document.getElementById('voice-output').textContent = transcript;
         if (event.results[event.resultIndex].isFinal) {
           generateResponse(transcript);
