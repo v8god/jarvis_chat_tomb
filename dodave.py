@@ -41,12 +41,12 @@ import googleapiclient.discovery
 import googleapiclient.errors
 
 
-# IMPORTS FOR STARTING CHATBOX
-import threading
-from flask import Flask, render_template, request, jsonify
-from flask_socketio import SocketIO, emit
-import time
-import queue
+# # IMPORTS FOR STARTING CHATBOX
+# import threading
+# from flask import Flask, render_template, request, jsonify
+# from flask_socketio import SocketIO, emit
+# import time
+# import queue
 
 
 
@@ -79,8 +79,8 @@ voices = engine.getProperty('voices')
 engine.setProperty('voices', voices[1].id)
 
 
-app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+# app = Flask(__name__)
+# socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 # ===== Global Settings =====
@@ -91,15 +91,15 @@ def add_chat(sender, text):
     """Push message to chat UI."""
     log_queue.put({"sender": sender, "text": text})'''
 
-mode = "text"
-listening = False
-command_queue = queue.Queue()
+# mode = "text"
+# listening = False
+# command_queue = queue.Queue()
 
-chat_history = []
+# chat_history = []
 
-def add_chat(sender, text):
-    chat_history.append({"sender": sender, "text": text})
-    socketio.emit('new_message', {"sender": sender, "text": text})
+# def add_chat(sender, text):
+#     chat_history.append({"sender": sender, "text": text})
+#     socketio.emit('new_message', {"sender": sender, "text": text})
 
 
 
@@ -161,38 +161,38 @@ def wishMe():
     print("Please tell me how can I help you")
 
 def takeCommand():
-    global mode
-    #Takes command/microphone input and give us string command
-    if mode == "text":
-        # Wait until text command is received via web
-        while True:
-            try:
-                #cmd_data = log_queue.get(timeout=0.1)
-                cmd_data = command_queue.get(timeout=0.1)
-                if cmd_data.get("type") == "web_command":
-                    add_chat("You", cmd_data["text"])
-                    return cmd_data["text"]
-            except queue.Empty:
-                pass
-    else:
-        r = sr.Recognizer()
-        with sr.Microphone() as source:
-             print("Listening....")
-             r.pause_threshold = 1
-             audio = r.listen(source)
-    
-        try:
-             print("RecogniZing.....")
-             query = r.recognize_google(audio, language='en-in')
-             print(f"You said: {query}\n")
-             #speak(f"You said: {self.query}\n")
-    
-        except Exception as e:
-             print(e)
-             print("say that again please.....")
-             speak("say that again please.....", "confused")
-             return "None"
-        return query
+    # global mode
+    # #Takes command/microphone input and give us string command
+    # if mode == "text":
+    #     # Wait until text command is received via web
+    #     while True:
+    #         try:
+    #             #cmd_data = log_queue.get(timeout=0.1)
+    #             cmd_data = command_queue.get(timeout=0.1)
+    #             if cmd_data.get("type") == "web_command":
+    #                 add_chat("You", cmd_data["text"])
+    #                 return cmd_data["text"]
+    #         except queue.Empty:
+    #             pass
+    # else:
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+         print("Listening....")
+         r.pause_threshold = 1
+         audio = r.listen(source)
+
+    try:
+         print("RecogniZing.....")
+         query = r.recognize_google(audio, language='en-in')
+         print(f"You said: {query}\n")
+         #speak(f"You said: {self.query}\n")
+
+    except Exception as e:
+         print(e)
+         print("say that again please.....")
+         speak("say that again please.....", "confused")
+         return "None"
+    return query
 
 #FOR EMAIL ID###################################
 def validate_email(email):
@@ -623,337 +623,337 @@ class MainThread(QThread):
     def Task(self):
 '''
 
-def JarvisMain():
-    wishMe()  # Call wishMe() only once at the beginning
-    while True:
-        query = takeCommand().lower()
-        #logic for executing this command based on qury (task)
-        if 'wikipedia' in query:
-            speak("searching for Request...", "obedient")
-            query = query.replace("wikipedia","")
-            results = wikipedia.summary(query, sentences=2)
-            speak("Sir according to wikipedia", "obedient")
-            speak(results, "obedient")
-            print(results)
-        elif 'your name' in query:
-            speak("My name is Jarvis", "happy")
-            print("My name is Jarvis")
-        elif 'who is your creator' in query or 'who created you' in query:
-            speak("my creator's name is Pratham", "loving")
-            print("my creator's name is Pratham")
-        elif 'open youtube' in query:
-            speak("OK Boss opening YOUTUBE", "obedient")
-            webbrowser.open("www.youtube.com")
-        elif 'open google' in query:
-            webbrowser.open("www.google.com")
-        elif 'time' in query:
-            strTime = datetime.datetime.now().strftime("%H:%M:%S")
-            speak(f"sir, the time is {strTime}", "obedient")
-            print(f"sir, the time is {strTime}")
-        elif 'what can i call you' in query or 'who are you' in query:
-            speak('you can call me with any name boss', "loving")
-        # for playing songs 
-        elif 'play'in query:
-            song_name = query.replace('play', '').strip()
-            print(f"Searching for the {song_name}...")
-            print("Is this the correct song? (Yes/No)")
-            speak("Is this the correct song? Yes or No", "happy")
-            response = takeCommand().lower()
-            if response == 'no':
-                speak("Please type the correct song name:", "obidiently")
-                print("Please type the correct song name:")
-                typed_song_name = input("Enter the song name: ")
+# def JarvisMain():
+wishMe()  # Call wishMe() only once at the beginning
+while True:
+    query = takeCommand().lower()
+    #logic for executing this command based on qury (task)
+    if 'wikipedia' in query:
+        speak("searching for Request...", "obedient")
+        query = query.replace("wikipedia","")
+        results = wikipedia.summary(query, sentences=2)
+        speak("Sir according to wikipedia", "obedient")
+        speak(results, "obedient")
+        print(results)
+    elif 'your name' in query:
+        speak("My name is Jarvis", "happy")
+        print("My name is Jarvis")
+    elif 'who is your creator' in query or 'who created you' in query:
+        speak("my creator's name is Pratham", "loving")
+        print("my creator's name is Pratham")
+    elif 'open youtube' in query:
+        speak("OK Boss opening YOUTUBE", "obedient")
+        webbrowser.open("www.youtube.com")
+    elif 'open google' in query:
+        webbrowser.open("www.google.com")
+    elif 'time' in query:
+        strTime = datetime.datetime.now().strftime("%H:%M:%S")
+        speak(f"sir, the time is {strTime}", "obedient")
+        print(f"sir, the time is {strTime}")
+    elif 'what can i call you' in query or 'who are you' in query:
+        speak('you can call me with any name boss', "loving")
+    # for playing songs 
+    elif 'play'in query:
+        song_name = query.replace('play', '').strip()
+        print(f"Searching for the {song_name}...")
+        print("Is this the correct song? (Yes/No)")
+        speak("Is this the correct song? Yes or No", "happy")
+        response = takeCommand().lower()
+        if response == 'no':
+            speak("Please type the correct song name:", "obidiently")
+            print("Please type the correct song name:")
+            typed_song_name = input("Enter the song name: ")
+            play_song(typed_song_name)
+            print("Do you want to loop this song? (Yes/No)")
+            speak("Do you want to loop this song? Yes or No", "happy")
+            loop_response = takeCommand().lower()
+            if loop_response == 'yes':
+                play_song(typed_song_name, loop = True)
+            elif loop_response == 'no':
                 play_song(typed_song_name)
-                print("Do you want to loop this song? (Yes/No)")
-                speak("Do you want to loop this song? Yes or No", "happy")
-                loop_response = takeCommand().lower()
-                if loop_response == 'yes':
-                    play_song(typed_song_name, loop = True)
-                elif loop_response == 'no':
-                    play_song(typed_song_name)
-            elif response == ' yes':
+        elif response == ' yes':
+            play_song(song_name)
+            print("Do you want to loop this song? (Yes/No)")
+            speak("Do you want to loop this song? Yes or No", "happy")
+            loop_response = takeCommand().lower()
+            if loop_response == 'yes':
+                play_song(song_name, loop = True)
+            elif loop_response == 'no':
                 play_song(song_name)
-                print("Do you want to loop this song? (Yes/No)")
-                speak("Do you want to loop this song? Yes or No", "happy")
-                loop_response = takeCommand().lower()
-                if loop_response == 'yes':
-                    play_song(song_name, loop = True)
-                elif loop_response == 'no':
-                    play_song(song_name)
-            '''else:
-                print("Do you want to loop this song? (Yes/No)")
-                speak("Do you want to loop this song? Yes or No")
-                if loop_response == 'yes':
-                    play_song(song_name, loop = True)
-                else:
-                    print("Do you want to loop the playlist? (Yes/No)")
-                    playlist_loop_response = takeCommand().lower()
-                    if playlist_loop_response == 'yes':
-                        #Loop the Playlist
-                        playlist_folder = ''
-                        for root, dirs, files in os.walk(playlist_folder):
-                            for file in files:
-                                if file.endswith(('.mp3', '.wav', '.ogg', '.m4a')): # Add new extensions if u have any
-                                    song_path = os.path.join(root, file)
-                                    vlc_instance = vlc.Instance()
-                                    media_player = vlc_instance.media_player_new()
-                                    media = vlc_instance.media_new(song_path)
-                                    media.add_option("repeat")
-                                    media_player.set_media(media)
-                                    media_player.play()'''
-                
-        elif 'search song named' in query:
-            search_query = query.replace('search song named', '').strip()
-            print(f"Searching for {search_query}...")
-            confirm_search_song = takeCommand().lower()
-            print("Is this the correct song? (Yes/No)")
-            speak("Is this the correct song? Yes or No", "happy")
-            if confirm_search_song == 'yes':
-                play_song(search_query)
-                print("Do you want to loop this song? (Yes/No)")
-                speak("Do you want to loop this song? Yes or No", "happy")
-                loop_response1 = takeCommand().lower()
-                if loop_response1 == 'yes':
-                    play_song(search_query, loop = True)
-                elif loop_response1 == 'no':
-                    play_song(search_query)
-    
-            elif confirm_search_song == 'no':
-                speak("Please enter the correct search song:", "happy")
-                print("Please enter the correct search song:")
-                correct_search_song = input("Enter the search song:")
-                play_song(correct_search_song)
-                print("Do you want to loop this song? (Yes/No)")
-                speak("Do you want to loop this song? Yes or No", "happy")
-                loop_response1 = takeCommand().lower()
-                if loop_response1 == 'yes':
-                    play_song(correct_search_song, loop = True)
-                elif loop_response1 == 'no':
-                    play_song(correct_search_song)
-    
-    
-        elif "generate image" in query or "create image" in query:
-            try:
-                generate_image()
-            except Exception as e:
-                print(e)
-                speak(f"sorry sir because of {e}\n", "confused")
-    
-    
-            '''print("Do you want to loop the search? (Yes/No)")
-            loop_resp = takeCommand().lower()
-            if loop_resp == 'yes':
-                search_computer(search_query, loop=True)
+        '''else:
+            print("Do you want to loop this song? (Yes/No)")
+            speak("Do you want to loop this song? Yes or No")
+            if loop_response == 'yes':
+                play_song(song_name, loop = True)
             else:
-                search_computer(search_query)'''
+                print("Do you want to loop the playlist? (Yes/No)")
+                playlist_loop_response = takeCommand().lower()
+                if playlist_loop_response == 'yes':
+                    #Loop the Playlist
+                    playlist_folder = ''
+                    for root, dirs, files in os.walk(playlist_folder):
+                        for file in files:
+                            if file.endswith(('.mp3', '.wav', '.ogg', '.m4a')): # Add new extensions if u have any
+                                song_path = os.path.join(root, file)
+                                vlc_instance = vlc.Instance()
+                                media_player = vlc_instance.media_player_new()
+                                media = vlc_instance.media_new(song_path)
+                                media.add_option("repeat")
+                                media_player.set_media(media)
+                                media_player.play()'''
             
-        '''elif 'play my playlist' in query:
-            music_dir = ''
-            songs = os.listdir(music_dir)
-            print(songs)'''
+    elif 'search song named' in query:
+        search_query = query.replace('search song named', '').strip()
+        print(f"Searching for {search_query}...")
+        confirm_search_song = takeCommand().lower()
+        print("Is this the correct song? (Yes/No)")
+        speak("Is this the correct song? Yes or No", "happy")
+        if confirm_search_song == 'yes':
+            play_song(search_query)
+            print("Do you want to loop this song? (Yes/No)")
+            speak("Do you want to loop this song? Yes or No", "happy")
+            loop_response1 = takeCommand().lower()
+            if loop_response1 == 'yes':
+                play_song(search_query, loop = True)
+            elif loop_response1 == 'no':
+                play_song(search_query)
+
+        elif confirm_search_song == 'no':
+            speak("Please enter the correct search song:", "happy")
+            print("Please enter the correct search song:")
+            correct_search_song = input("Enter the search song:")
+            play_song(correct_search_song)
+            print("Do you want to loop this song? (Yes/No)")
+            speak("Do you want to loop this song? Yes or No", "happy")
+            loop_response1 = takeCommand().lower()
+            if loop_response1 == 'yes':
+                play_song(correct_search_song, loop = True)
+            elif loop_response1 == 'no':
+                play_song(correct_search_song)
+
+
+    elif "generate image" in query or "create image" in query:
+        try:
+            generate_image()
+        except Exception as e:
+            print(e)
+            speak(f"sorry sir because of {e}\n", "confused")
+
+
+        '''print("Do you want to loop the search? (Yes/No)")
+        loop_resp = takeCommand().lower()
+        if loop_resp == 'yes':
+            search_computer(search_query, loop=True)
+        else:
+            search_computer(search_query)'''
         
-        '''elif 'open unacademy' in query:
-            webbrowser.open("https://unacademy.com")
-        elif 'open unacademy santosh sir class' in query:
-            webbrowser.open("https://unacademy.com/@santoshbhatt915")
-        elif 'open unacademy deepak sir class' in query:
-            webbrowser.open("https://unacademy.com/@unacademy-user-0DGMDV4NSHIM")
-        elif 'open whatsapp' in query:
-            open("ww.whatsappweb.com")
-        elif 'diksha mam class' in query:
-            webbrowser.open("https://us04web.zoom.us/j/76236614263?pwd=WHZva2dFM3grOFZNZWp2S0tMaXdkZz09")
-        elif 'Nidhi mam class' in query:
-            webbrowser.open("https://us04web.zoom.us/j/77352329748")'''
+    '''elif 'play my playlist' in query:
+        music_dir = ''
+        songs = os.listdir(music_dir)
+        print(songs)'''
+    
+    '''elif 'open unacademy' in query:
+        webbrowser.open("https://unacademy.com")
+    elif 'open unacademy santosh sir class' in query:
+        webbrowser.open("https://unacademy.com/@santoshbhatt915")
+    elif 'open unacademy deepak sir class' in query:
+        webbrowser.open("https://unacademy.com/@unacademy-user-0DGMDV4NSHIM")
+    elif 'open whatsapp' in query:
+        open("ww.whatsappweb.com")
+    elif 'diksha mam class' in query:
+        webbrowser.open("https://us04web.zoom.us/j/76236614263?pwd=WHZva2dFM3grOFZNZWp2S0tMaXdkZz09")
+    elif 'Nidhi mam class' in query:
+        webbrowser.open("https://us04web.zoom.us/j/77352329748")'''
+    
+    
+    if 'open whatsapp'in query:
+        try:
+            codePath = "C:\\Users\\91767\\AppData\\Local\\WhatsApp\\WhatsApp.exe"
+            os.startfile(codePath)
+        except:
+            speak("As i am not able to locate the WhatsApp in your device and will open on your webbrowser now ")
+            print("As i am not able to locate the WhatsApp in your device and will open on your webbrowser now ")
+            whatsapp_url = "https://web.whatsapp.com/"
+            webbrowser.open(whatsapp_url)    
+
+    elif 'email' in query or 'letter' in query:
+        send_email()
+
+    elif 'thank u' in query or 'thank you' in query or 'thanks' in query:
+        speak("Welcome Boss", "loving")
         
-        
-        if 'open whatsapp'in query:
-            try:
-                codePath = "C:\\Users\\91767\\AppData\\Local\\WhatsApp\\WhatsApp.exe"
-                os.startfile(codePath)
-            except:
-                speak("As i am not able to locate the WhatsApp in your device and will open on your webbrowser now ")
-                print("As i am not able to locate the WhatsApp in your device and will open on your webbrowser now ")
-                whatsapp_url = "https://web.whatsapp.com/"
-                webbrowser.open(whatsapp_url)    
-    
-        elif 'email' in query or 'letter' in query:
-            send_email()
-    
-        elif 'thank u' in query or 'thank you' in query or 'thanks' in query:
-            speak("Welcome Boss", "loving")
-            
-        elif 'exit' in query or 'escape' in query:
-            try:
-                speak("your command is fulfilled GoodBye Boss", "obedient")
-                print("your command is fulfilled GoodBye Boss")
-                sys.exit()
-            except Exception as e:
-                print(e)
-                speak(f"sorry sir because of {e}\n", "confused")
-                break
-        elif 'search on google' in query or 'search' in query:
-            speak("what should i search", "obedient")
-            time.sleep(1)
-            print("Speak.....")
-            time.sleep(1)
-            search = takeCommand()
-            print(search)
-            webbrowser.open(search)
-        elif "joke" in query:
-            joke = pyjokes.get_joke(language='en',category='neutral')
-            speak(joke, "happy")
-        '''elif ('iron man mod') in query:
-            video = cv2.VideoCapture(0)
-            mp_drawing = mp.solutions.drawing_utils
-            mp_eyes = mp.solutions.hands
-            #done=str("iron man mod")
-            x = 2
-            y = 3
-            z = x+y
-            for z in range(1,10):
-                try:
-                    with mp_eyes.hands(min_detection_confidence= 0.7, min_tracking_confidence= 0.4) as eyes:
-                        while video.isOpened():
-                            _, frame = video.read()
-                            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-                            image = cv2.flip(image, 1)
-    
-                            imageHeight, imageWidth, _ = image.shape
-    
-                            results = eyes.process(image)
-    
-    
-                            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    
-                        if results.multi_hand_landmarks:
-                            for num, hand in enumerate(results.multi_hand_landmarks):
-                                mp_drawing.draw_landmarks(image, hand, mp_eyes.HAND_CONNECTIONS, 
-                                                        mp_drawing.DrawingSpec(color=(250, 44, 250), thickness=2, circle_radius=2),
-                                                        )
-    
-                        if results.multi_hand_landmarks != None:
-                        for handLandmarks in results.multi_hand_landmarks:
-                            for point in mp_eyes.HandLandmark:
-    
-    
-                                normalizedLandmark = handLandmarks.landmark[point]
-                                pixelCoordinatesLandmark = mp_drawing._normalized_to_pixel_coordinates(normalizedLandmark.x, normalizedLandmark.y, imageWidth, imageHeight)
-    
-                                point=str(point)
-    
-                                if point=='HandLandmark.INDEX_FINGER_TIP':
-                                    try:
-                                        Eye_x=pixelCoordinatesLandmark[0]
-                                        Eye_y=pixelCoordinatesLandmark[1]
-                                        win32api.SetCursorPos((Eye_x*4,Eye_y*5))
-    
-                                    except:
-                                        pass
-                    cv2.imshow('Hand Tracking', image)
-    
-                    if cv2.waitKey(10) & 0xFF == ord('q'):
-                        break
-    
-                    video.release()
-                except:
-    
-                    pass'''
-        
-        if any(x in query for x in ['bye', 'goodbye']):
+    elif 'exit' in query or 'escape' in query:
+        try:
             speak("your command is fulfilled GoodBye Boss", "obedient")
             print("your command is fulfilled GoodBye Boss")
+            sys.exit()
+        except Exception as e:
+            print(e)
+            speak(f"sorry sir because of {e}\n", "confused")
             break
-        elif "open gmail" in query:
-            webbrowser.open_new_tab("gmail.com")
-            speak("Google Mail open now", "obedient")
-            time.sleep(5)
-        elif 'i love you' in query or 'i love u' in query:
-            love()
-        else:
-            speak(f"Command '{query}' not set by master.")
+    elif 'search on google' in query or 'search' in query:
+        speak("what should i search", "obedient")
+        time.sleep(1)
+        print("Speak.....")
+        time.sleep(1)
+        search = takeCommand()
+        print(search)
+        webbrowser.open(search)
+    elif "joke" in query:
+        joke = pyjokes.get_joke(language='en',category='neutral')
+        speak(joke, "happy")
+    '''elif ('iron man mod') in query:
+        video = cv2.VideoCapture(0)
+        mp_drawing = mp.solutions.drawing_utils
+        mp_eyes = mp.solutions.hands
+        #done=str("iron man mod")
+        x = 2
+        y = 3
+        z = x+y
+        for z in range(1,10):
+            try:
+                with mp_eyes.hands(min_detection_confidence= 0.7, min_tracking_confidence= 0.4) as eyes:
+                    while video.isOpened():
+                        _, frame = video.read()
+                        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                        image = cv2.flip(image, 1)
+
+                        imageHeight, imageWidth, _ = image.shape
+
+                        results = eyes.process(image)
+
+
+                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+                    if results.multi_hand_landmarks:
+                        for num, hand in enumerate(results.multi_hand_landmarks):
+                            mp_drawing.draw_landmarks(image, hand, mp_eyes.HAND_CONNECTIONS, 
+                                                    mp_drawing.DrawingSpec(color=(250, 44, 250), thickness=2, circle_radius=2),
+                                                    )
+
+                    if results.multi_hand_landmarks != None:
+                    for handLandmarks in results.multi_hand_landmarks:
+                        for point in mp_eyes.HandLandmark:
+
+
+                            normalizedLandmark = handLandmarks.landmark[point]
+                            pixelCoordinatesLandmark = mp_drawing._normalized_to_pixel_coordinates(normalizedLandmark.x, normalizedLandmark.y, imageWidth, imageHeight)
+
+                            point=str(point)
+
+                            if point=='HandLandmark.INDEX_FINGER_TIP':
+                                try:
+                                    Eye_x=pixelCoordinatesLandmark[0]
+                                    Eye_y=pixelCoordinatesLandmark[1]
+                                    win32api.SetCursorPos((Eye_x*4,Eye_y*5))
+
+                                except:
+                                    pass
+                cv2.imshow('Hand Tracking', image)
+
+                if cv2.waitKey(10) & 0xFF == ord('q'):
+                    break
+
+                video.release()
+            except:
+
+                pass'''
     
-JarvisMain()
-# ===== Flask UI =====
-#app = Flask(__name__)
+    if any(x in query for x in ['bye', 'goodbye']):
+        speak("your command is fulfilled GoodBye Boss", "obedient")
+        print("your command is fulfilled GoodBye Boss")
+        break
+    elif "open gmail" in query:
+        webbrowser.open_new_tab("gmail.com")
+        speak("Google Mail open now", "obedient")
+        time.sleep(5)
+    elif 'i love you' in query or 'i love u' in query:
+        love()
+    else:
+        speak(f"Command '{query}' not set by master.")
+    
+# JarvisMain()
+# # ===== Flask UI =====
+# #app = Flask(__name__)
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+# @app.route("/")
+# def index():
+#     return render_template("index.html")
 
-#@app.route("/logs")
-# def get_logs():
-#     logs = []
-#     while not log_queue.empty():
-#         logs.append(log_queue.get())
-#     return jsonify({"logs": logs})
+# #@app.route("/logs")
+# # def get_logs():
+# #     logs = []
+# #     while not log_queue.empty():
+# #         logs.append(log_queue.get())
+# #     return jsonify({"logs": logs})
 
-@app.route('/set_mode', methods=['POST'])
-def set_mode():
-    global mode
-    data = request.json
-    mode = data.get('mode', 'text')
-    print(f"Mode changed to: {mode}")
-    return jsonify({"status": "ok", "mode": mode})
-
-
-# @app.route("/send_command", methods=["POST"])
-# def send_command():
-#     data = request.get_json()
-#     cmd = data.get("cmd", "")
-#     log_queue.put({"type": "web_command", "text": cmd})
-#     return jsonify({"status": "ok"})
-
-@app.route('/send_text', methods=['POST'])
-def receive_text():
-    data = request.json
-    text = data.get('text')
-    command_queue.put({"type": "web_command", "text": text})
-    return jsonify({"status": "received", "text": text})
-
-# @app.route("/set_mode", methods=["POST"])
+# @app.route('/set_mode', methods=['POST'])
 # def set_mode():
 #     global mode
-#     data = request.get_json()
-#     mode = data.get("mode", "voice")
-#     add_chat("System", f"Mode set to {mode}")
-#     return jsonify({"status": "ok"})
-
-# def run_flask():
-#     app.run(debug=False, port=5000, use_reloader=False)
-
-# if __name__ == "__main__":
-#     flask_thread = threading.Thread(target=run_flask)
-#     flask_thread.start()
-#     JarvisMain()
-
-@socketio.on('start_listening')
-def handle_start_listening():
-    global listening
-    if not listening:
-        listening = True
-        print("Mic started listening (triggered from frontend)")
-        # Optionally start a new thread here to do your speech recognition and add_chat when done
-        def listen_thread():
-            global listening
-            # Your actual speech recognition logic can go here
-            # For demo, just simulate:
-            time.sleep(5)
-            spoken_text = "simulated speech input after mic start"
-            add_chat("You", spoken_text)
-            listening = False
-
-        threading.Thread(target=listen_thread).start()
-
-@socketio.on('stop_listening')
-def handle_stop_listening():
-    global listening
-    listening = False
-    print("Mic stopped listening (triggered from frontend)")
+#     data = request.json
+#     mode = data.get('mode', 'text')
+#     print(f"Mode changed to: {mode}")
+#     return jsonify({"status": "ok", "mode": mode})
 
 
-if __name__ == '__main__':
-    socketio.run(app, debug=True)
+# # @app.route("/send_command", methods=["POST"])
+# # def send_command():
+# #     data = request.get_json()
+# #     cmd = data.get("cmd", "")
+# #     log_queue.put({"type": "web_command", "text": cmd})
+# #     return jsonify({"status": "ok"})
+
+# @app.route('/send_text', methods=['POST'])
+# def receive_text():
+#     data = request.json
+#     text = data.get('text')
+#     command_queue.put({"type": "web_command", "text": text})
+#     return jsonify({"status": "received", "text": text})
+
+# # @app.route("/set_mode", methods=["POST"])
+# # def set_mode():
+# #     global mode
+# #     data = request.get_json()
+# #     mode = data.get("mode", "voice")
+# #     add_chat("System", f"Mode set to {mode}")
+# #     return jsonify({"status": "ok"})
+
+# # def run_flask():
+# #     app.run(debug=False, port=5000, use_reloader=False)
+
+# # if __name__ == "__main__":
+# #     flask_thread = threading.Thread(target=run_flask)
+# #     flask_thread.start()
+# #     JarvisMain()
+
+# @socketio.on('start_listening')
+# def handle_start_listening():
+#     global listening
+#     if not listening:
+#         listening = True
+#         print("Mic started listening (triggered from frontend)")
+#         # Optionally start a new thread here to do your speech recognition and add_chat when done
+#         def listen_thread():
+#             global listening
+#             # Your actual speech recognition logic can go here
+#             # For demo, just simulate:
+#             time.sleep(5)
+#             spoken_text = "simulated speech input after mic start"
+#             add_chat("You", spoken_text)
+#             listening = False
+
+#         threading.Thread(target=listen_thread).start()
+
+# @socketio.on('stop_listening')
+# def handle_stop_listening():
+#     global listening
+#     listening = False
+#     print("Mic stopped listening (triggered from frontend)")
+
+
+# if __name__ == '__main__':
+#     socketio.run(app, debug=True)
 
 
 '''
@@ -1007,6 +1007,7 @@ jarvis.show()
 #exit(app.exit_())
 sys.exit(app.exec_())
 '''
+
 
 
 
