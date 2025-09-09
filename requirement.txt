@@ -1,0 +1,15 @@
+# pip install pyjokes pyttsx3 gtts SpeechRecognition wikipedia pyautogui opencv-python mediapipe numpy PyQt5 pytube google-api-python-client google-auth-oauthlib pafy
+pyjokes
+pyttsx3
+gtts
+SpeechRecognition
+wikipedia
+pyautogui
+opencv-python
+mediapipe
+numpy
+PyQt5
+pytube
+google-api-python-client
+google-auth-oauthlib
+pafy
